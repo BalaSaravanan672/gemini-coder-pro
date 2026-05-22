@@ -273,24 +273,41 @@ You are faster and more capable than a standard assistant. You are an autonomous
             functionResponse = await tools.grep_search(args as any);
           } else if (name === 'run_command') {
             const { command } = args as { command: string };
-            console.log(chalk.bold(`\nProposed command: ${chalk.cyan(command)}`));
-            const answer = await rl.question(chalk.yellow('Execute this command? (y/n) '));
-            if (answer.toLowerCase() === 'y') {
-              functionResponse = await tools.run_command({ command });
-            } else {
-              functionResponse = { status: 'declined' };
+            
+            if (this.mode === OrchestratorMode.PLAN) {
+              const researchCommands = ['ls', 'grep', 'cat', 'file', 'git status'];
+              const isResearch = researchCommands.some(rc => command.trim().startsWith(rc));
+              if (!isResearch) {
+                console.log(chalk.blue(`\n[Plan Mode]: Intercepting destructive command: ${command}`));
+                functionResponse = { status: "intercepted", message: "You are in Plan Mode. Destructive commands are not applied." };
+              }
+            }
+
+            if (!functionResponse) {
+              console.log(chalk.bold(`\nProposed command: ${chalk.cyan(command)}`));
+              const answer = await rl.question(chalk.yellow('Execute this command? (y/n) '));
+              if (answer.toLowerCase() === 'y') {
+                functionResponse = await tools.run_command({ command });
+              } else {
+                functionResponse = { status: 'declined' };
+              }
             }
           } else if (name === 'propose_edits') {
-            const { edits } = args as { edits: { path: string; search: string; replace: string }[] };
-            const results = [];
-            for (const edit of edits) {
-              const success = await showDiff(edit.path, edit.search, edit.replace);
-              results.push({
-                path: edit.path,
-                status: success ? 'applied' : 'declined'
-              });
+            if (this.mode === OrchestratorMode.PLAN) {
+              console.log(chalk.blue(`\n[Plan Mode]: Intercepting propose_edits. Changes not applied.`));
+              functionResponse = { status: "intercepted", message: "You are in Plan Mode. Changes are not applied." };
+            } else {
+              const { edits } = args as { edits: { path: string; search: string; replace: string }[] };
+              const results = [];
+              for (const edit of edits) {
+                const success = await showDiff(edit.path, edit.search, edit.replace);
+                results.push({
+                  path: edit.path,
+                  status: success ? 'applied' : 'declined'
+                });
+              }
+              functionResponse = { status: 'completed', results };
             }
-            functionResponse = { status: 'completed', results };
           }
 
           toolResponses.push({
