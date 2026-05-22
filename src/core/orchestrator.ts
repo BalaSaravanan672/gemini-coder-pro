@@ -254,12 +254,14 @@ You are faster and more capable than a standard assistant. You are an autonomous
         }
       }));
 
-      if (result.candidates?.[0]?.content) {
-        this.session.history.push(result.candidates[0].content);
-      }
+      const candidate = result.candidates?.[0];
+      if (!candidate?.content) return;
+      const message = candidate.content;
+      this.session.history.push(message);
 
-      if (result.text) {
-        console.log(chalk.cyan(`\nGemini: ${result.text}`));
+      const textParts = message.parts?.filter(p => p.text).map(p => p.text).join('') || '';
+      if (textParts) {
+        console.log(chalk.cyan(`\nGemini: ${textParts}`));
       }
 
       const functionCalls = result.functionCalls;
