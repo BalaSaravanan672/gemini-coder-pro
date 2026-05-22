@@ -247,7 +247,7 @@ You are faster and more capable than a standard assistant. You are an autonomous
         }
       }
       const result = await this.withRetry(() => aiClient.models.generateContent({
-        model: 'gemini-2.0-flash-001',
+        model: 'gemini-3.5-flash',
         contents,
         config: {
           tools: [{ functionDeclarations }],
