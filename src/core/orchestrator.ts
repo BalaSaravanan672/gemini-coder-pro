@@ -7,6 +7,8 @@ import { Session, SessionManager } from './session.js';
 import * as readline from 'readline/promises';
 import { CommandRegistry } from './commands.js';
 import { registerAllCommands } from '../commands/index.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 export const rl = readline.createInterface({
   input: process.stdin,
@@ -105,37 +107,34 @@ export class Orchestrator {
   constructor(session: Session, sessionManager: SessionManager) {
     this.session = session;
     this.sessionManager = sessionManager;
-    
+  }
+
+  public async initialize() {
     // Register all slash commands
     registerAllCommands();
     
     // Initialize system prompt if new session
     if (this.session.history.length === 0) {
+      const systemPrompt = await this.loadSystemPrompt();
       this.session.history.push({
         role: 'user',
         parts: [{
-          text: `You are Gemini Coder Pro, a state-of-the-art AI coding agent. 
-Your goal is to autonomously handle complex engineering tasks with high precision and reliability.
-
-CORE PROTOCOLS:
-1. PLAN-ACT-VERIFY:
-   - PLAN: Analyze the context map and use 'grep_search' or 'list_directory' to find relevant code.
-   - ACT: Read files to understand implementation, then propose surgical edits.
-    - VERIFY: After every edit, run tests or compilers using 'run_command' to ensure no regressions.
-2. AGENTIC AUTONOMY: 
-   - Do not ask for permission to use tools for research (reading, searching, listing).
-   - Only stop for user approval during 'propose_edits' or 'run_command' (if it modifies state).
-   - If a command fails or a tool returns an error, diagnose and fix it immediately without waiting for user input.
-3. SURGICAL PRECISION: Use SEARCH/REPLACE blocks that are large enough to be unique but small enough to be surgical.
-4. TOKEN EFFICIENCY: Use 'grep_search' and 'list_directory' to narrow down your focus before reading large files.
-
-You are faster and more capable than a standard assistant. You are an autonomous engineer.`
+          text: systemPrompt
         }]
       });
       this.session.history.push({
         role: 'model',
         parts: [{ text: "Gemini Coder Pro initialized. I am ready to autonomously engineer, refactor, and verify your codebase. I will follow the Plan-Act-Verify protocol for every task. What is our objective?" }]
       });
+    }
+  }
+
+  private async loadSystemPrompt(): Promise<string> {
+    try {
+      const promptPath = path.join(process.cwd(), '.gemini-coder', 'system-prompt.md');
+      return await fs.readFile(promptPath, 'utf8');
+    } catch (error) {
+      return `You are Gemini Coder Pro, an autonomous engineering agent.`;
     }
   }
 

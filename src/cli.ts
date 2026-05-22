@@ -33,6 +33,7 @@ program
     }
 
     const orchestrator = new Orchestrator(session, sessionManager);
+    await orchestrator.initialize();
     
     if (options.prompt) {
       orchestrator['session'].history.push({ role: 'user', parts: [{ text: options.prompt }] });
