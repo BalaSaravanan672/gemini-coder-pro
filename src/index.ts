@@ -117,6 +117,26 @@ const functionDeclarations: FunctionDeclaration[] = [
 ];
 
 const MAX_TURNS = 20;
+const MAX_RETRIES = 3;
+
+async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
+  let delay = 2000;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isRateLimit = error.message?.includes('429') || error.status === 429;
+      if (isRateLimit && i < retries - 1) {
+        console.log(chalk.yellow(`\n[System]: Rate limit hit (429). Retrying in ${delay / 1000}s... (Attempt ${i + 1}/${retries})`));
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error('Max retries reached');
+}
 
 async function main() {
   console.log(chalk.blue.bold('Gemini Coder Pro REPL Started. Type "exit" to quit.'));
@@ -158,10 +178,10 @@ async function processTurn(turnCount: number) {
       }
     }
 
-    const result = await model.generateContent({
+    const result = await withRetry(() => model.generateContent({
       contents,
       tools: [{ functionDeclarations }],
-    });
+    }));
 
     const response = result.response;
     if (!response.candidates || response.candidates.length === 0) return;
