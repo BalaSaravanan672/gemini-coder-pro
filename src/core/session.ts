@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { Content } from '@google/generative-ai';
+import { Content } from '@google/genai';
 
 const SESSIONS_DIR = path.join(process.cwd(), '.gemini-coder', 'sessions');
 

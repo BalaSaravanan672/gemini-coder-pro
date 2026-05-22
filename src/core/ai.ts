@@ -1,29 +1,19 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GoogleAuth } from 'google-auth-library';
+import { GoogleGenAI } from '@google/genai';
+import fs from 'fs';
 
-async function getAccessToken() {
-  try {
-    const auth = new GoogleAuth({
-      keyFile: './gemini.json',
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    });
-    const client = await auth.getClient();
-    const tokenResponse = await client.getAccessToken();
-    return tokenResponse.token;
-  } catch (error) {
-    console.error(`Error: Failed to get access token: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
-  }
-}
-
-const token = await getAccessToken();
-if (!token) {
-  console.error('Error: Failed to retrieve access token.');
+const credentialsPath = './gemini.json';
+if (!fs.existsSync(credentialsPath)) {
+  console.error('Error: gemini.json not found in root directory.');
   process.exit(1);
 }
 
-const genAI = new GoogleGenerativeAI(token);
+const config = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
 
-export const model = genAI.getGenerativeModel({ 
-  model: 'gemini-2.0-flash-001' 
+export const client = new GoogleGenAI({
+  project: config.project_id,
+  location: 'us-central1',
+  vertexai: true,
+  googleAuthOptions: {
+    keyFile: credentialsPath,
+  },
 });

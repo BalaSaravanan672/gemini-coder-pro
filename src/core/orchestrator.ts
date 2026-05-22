@@ -1,9 +1,8 @@
-import { model as defaultModel } from './ai.js';
+import { client as aiClient } from './ai.js';
 import { getContextMap } from './context.js';
 import { tools } from './tools.js';
-import { showDiff } from './diff.js';
 import chalk from 'chalk';
-import { Content, Part, FunctionDeclaration, SchemaType } from '@google/generative-ai';
+import { Content, Part, FunctionDeclaration, Type } from '@google/genai';
 import { Session, SessionManager } from './session.js';
 import * as readline from 'readline/promises';
 import { CommandRegistry } from './commands.js';
@@ -24,11 +23,11 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'read_files',
     description: 'Read the contents of one or more files.',
     parameters: {
-      type: SchemaType.OBJECT,
+      type: Type.OBJECT,
       properties: {
         paths: {
-          type: SchemaType.ARRAY,
-          items: { type: SchemaType.STRING },
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
           description: 'The paths of the files to read.',
         },
       },
@@ -39,10 +38,10 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'run_command',
     description: 'Execute a shell command in the local terminal.',
     parameters: {
-      type: SchemaType.OBJECT,
+      type: Type.OBJECT,
       properties: {
         command: {
-          type: SchemaType.STRING,
+          type: Type.STRING,
           description: 'The shell command to execute.',
         },
       },
@@ -53,10 +52,10 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'grep_search',
     description: 'Search for a pattern across the codebase (grep).',
     parameters: {
-      type: SchemaType.OBJECT,
+      type: Type.OBJECT,
       properties: {
-        pattern: { type: SchemaType.STRING, description: 'The regex pattern to search for.' },
-        include: { type: SchemaType.STRING, description: 'Optional glob for files to include (e.g. "*.ts").' },
+        pattern: { type: Type.STRING, description: 'The regex pattern to search for.' },
+        include: { type: Type.STRING, description: 'Optional glob for files to include (e.g. "*.ts").' },
       },
       required: ['pattern'],
     },
@@ -65,9 +64,9 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'list_directory',
     description: 'List the contents of a specific directory.',
     parameters: {
-      type: SchemaType.OBJECT,
+      type: Type.OBJECT,
       properties: {
-        path: { type: SchemaType.STRING, description: 'The directory path (default ".").' },
+        path: { type: Type.STRING, description: 'The directory path (default ".").' },
       },
     },
   },
@@ -75,16 +74,16 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'propose_edits',
     description: 'Propose surgical edits to files using search/replace blocks.',
     parameters: {
-      type: SchemaType.OBJECT,
+      type: Type.OBJECT,
       properties: {
         edits: {
-          type: SchemaType.ARRAY,
+          type: Type.ARRAY,
           items: {
-            type: SchemaType.OBJECT,
+            type: Type.OBJECT,
             properties: {
-              path: { type: SchemaType.STRING },
-              search: { type: SchemaType.STRING, description: 'The EXACT literal text to find.' },
-              replace: { type: SchemaType.STRING, description: 'The text to replace it with.' },
+              path: { type: Type.STRING },
+              search: { type: Type.STRING, description: 'The EXACT literal text to find.' },
+              replace: { type: Type.STRING, description: 'The text to replace it with.' },
             },
             required: ['path', 'search', 'replace'],
           },
@@ -99,7 +98,7 @@ const MAX_TURNS = 50;
 const MAX_RETRIES = 3;
 
 export class Orchestrator {
-  private session: Session;
+  public session: Session;
   private sessionManager: SessionManager;
   private mode: OrchestratorMode = OrchestratorMode.NORMAL;
 
@@ -122,7 +121,7 @@ CORE PROTOCOLS:
 1. PLAN-ACT-VERIFY:
    - PLAN: Analyze the context map and use 'grep_search' or 'list_directory' to find relevant code.
    - ACT: Read files to understand implementation, then propose surgical edits.
-   - VERIFY: After every edit, run tests or compilers using 'run_command' to ensure no regressions.
+    - VERIFY: After every edit, run tests or compilers using 'run_command' to ensure no regressions.
 2. AGENTIC AUTONOMY: 
    - Do not ask for permission to use tools for research (reading, searching, listing).
    - Only stop for user approval during 'propose_edits' or 'run_command' (if it modifies state).
@@ -148,10 +147,6 @@ You are faster and more capable than a standard assistant. You are an autonomous
     this.mode = mode;
   }
 
-  /**
-   * Inject a message into the session history.
-   * Useful for programmatic interactions or slash commands.
-   */
   public injectMessage(message: Content) {
     this.session.history.push(message);
   }
@@ -162,7 +157,8 @@ You are faster and more capable than a standard assistant. You are an autonomous
       try {
         return await fn();
       } catch (error: any) {
-        const isRateLimit = error.message?.includes('429') || error.status === 429;
+        const errorMsg = String(error.message || error);
+        const isRateLimit = errorMsg.includes('429') || error.status === 429;
         if (isRateLimit && i < retries - 1) {
           console.log(chalk.yellow(`\n[System]: Rate limit hit (429). Retrying in ${delay / 1000}s... (Attempt ${i + 1}/${retries})`));
           await new Promise(resolve => setTimeout(resolve, delay));
@@ -215,7 +211,7 @@ You are faster and more capable than a standard assistant. You are an autonomous
       case 'help':
         console.log(chalk.bold('\nAvailable commands:'));
         CommandRegistry.getAll().forEach(h => {
-          console.log(`/${h.name} - ${h.description}`);
+          console.log(`\/${h.name} - ${h.description}`);
         });
         console.log('/clear - Start a new conversation');
         console.log('/help - Show this help');
@@ -240,107 +236,75 @@ You are faster and more capable than a standard assistant. You are an autonomous
         parts: (item.parts || []).map(part => ({ ...part }))
       }));
       
+      // Inject context map into last user message
       for (let i = contents.length - 1; i >= 0; i--) {
         if (contents[i].role === 'user') {
           const parts = contents[i].parts;
-          if (parts.length > 0 && 'text' in parts[0]) {
+          if (parts && parts.length > 0 && 'text' in parts[0]) {
             parts[0].text = `CONTEXT_MAP:\n${contextMap}\n\nUSER_REQUEST: ${parts[0].text}`;
           }
           break;
         }
       }
-
-      const result = await this.withRetry(() => defaultModel.generateContent({
+      const result = await this.withRetry(() => aiClient.models.generateContent({
+        model: 'gemini-2.0-flash-001',
         contents,
-        tools: [{ functionDeclarations }],
+        config: {
+          tools: [{ functionDeclarations }],
+        }
       }));
 
-      const response = result.response;
-      
-      // Use helper methods to extract content
-      const text = response.text ? response.text() : "";
-      if (text) {
-        console.log(chalk.cyan(`\nGemini: ${text}`));
+      if (result.candidates?.[0]?.content) {
+        this.session.history.push(result.candidates[0].content);
       }
 
-      const functionCalls = response.functionCalls ? response.functionCalls() : [];
-      
-      // Add model's response to history
-      if (response.candidates && response.candidates.length > 0) {
-        this.session.history.push(response.candidates[0].content);
+      if (result.text) {
+        console.log(chalk.cyan(`\nGemini: ${result.text}`));
       }
 
-      const toolResponses: Part[] = [];
-
+      const functionCalls = result.functionCalls;
       if (functionCalls && functionCalls.length > 0) {
+        const toolResponses: Part[] = [];
         for (const call of functionCalls) {
           const { name, args } = call;
           console.log(chalk.yellow(`\n[Tool Call]: ${name}(${JSON.stringify(args)})`));
 
           let functionResponse;
-          if (name === 'read_files') {
-            functionResponse = await tools.read_files(args as any);
-          } else if (name === 'list_directory') {
-            functionResponse = await tools.list_directory(args as any);
-          } else if (name === 'grep_search') {
-            functionResponse = await tools.grep_search(args as any);
-          } else if (name === 'run_command') {
-            const { command } = args as { command: string };
-            
-            if (this.mode === OrchestratorMode.PLAN) {
-              const researchCommands = ['ls', 'grep', 'cat', 'file', 'git status'];
-              const isResearch = researchCommands.some(rc => command.trim().startsWith(rc));
-              if (!isResearch) {
-                console.log(chalk.blue(`\n[Plan Mode]: Intercepting destructive command: ${command}`));
-                functionResponse = { status: "intercepted", message: "You are in Plan Mode. Destructive commands are not applied." };
-              }
-            }
-
-            if (!functionResponse) {
-              console.log(chalk.bold(`\nProposed command: ${chalk.cyan(command)}`));
-              const answer = await rl.question(chalk.yellow('Execute this command? (y/n) '));
-              if (answer.toLowerCase() === 'y') {
-                functionResponse = await tools.run_command({ command });
-              } else {
-                functionResponse = { status: 'declined' };
-              }
-            }
-          } else if (name === 'propose_edits') {
-            if (this.mode === OrchestratorMode.PLAN) {
-              console.log(chalk.blue(`\n[Plan Mode]: Intercepting propose_edits. Changes not applied.`));
-              functionResponse = { status: "intercepted", message: "You are in Plan Mode. Changes are not applied." };
+          try {
+            if (name === 'read_files') {
+              functionResponse = await tools.read_files(args as any);
+            } else if (name === 'list_directory') {
+              functionResponse = await tools.list_directory(args as any);
+            } else if (name === 'grep_search') {
+              functionResponse = await tools.grep_search(args as any);
+            } else if (name === 'run_command') {
+              functionResponse = await tools.run_command(args as any);
+            } else if (name === 'propose_edits') {
+              functionResponse = await tools.propose_edits(args as any);
             } else {
-              const { edits } = args as { edits: { path: string; search: string; replace: string }[] };
-              const results = [];
-              for (const edit of edits) {
-                const success = await showDiff(edit.path, edit.search, edit.replace);
-                results.push({
-                  path: edit.path,
-                  status: success ? 'applied' : 'declined'
-                });
-              }
-              functionResponse = { status: 'completed', results };
+              functionResponse = { error: `Unknown tool: ${name}` };
             }
+          } catch (error: any) {
+            functionResponse = { error: error.message || String(error) };
           }
 
           toolResponses.push({
             functionResponse: {
-              name,
+              name: name,
               response: { result: functionResponse }
             }
           });
         }
-      }
 
-      if (toolResponses.length > 0) {
         this.session.history.push({
-          role: 'function',
+          role: 'user',
           parts: toolResponses
         });
+
         await this.processTurn(turnCount + 1);
       }
     } catch (error: any) {
-      console.error(chalk.red(`Error in processTurn: ${error.message}`));
+      console.error(chalk.red(`\n[Error]: ${error.message || error}`));
     }
   }
 }
