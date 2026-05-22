@@ -3,12 +3,12 @@ import { Orchestrator } from '../core/orchestrator.js';
 
 export class SimplifyHandler implements CommandHandler {
   name = 'simplify';
-  description = 'Analyze and simplify complex code areas in recently edited files';
+  description = 'Analyze and simplify complex code areas';
 
   async execute(orchestrator: Orchestrator) {
     await orchestrator.injectMessage({
       role: 'user',
-      parts: [{ text: "Analyze the most recently edited files in the workspace. Identify areas with high complexity or 'code smells'. Propose a simplified, more readable refactor for one of these areas. After proposing the edits, run the project's tests (e.g., 'npm test' or equivalent) to verify that behavior is preserved." }]
+      parts: [{ text: "Analyze recently edited files. Identify high complexity or 'code smells'. Propose simplified refactor for one area. Verify with tests." }]
     });
     await orchestrator.processTurn(0);
   }

@@ -33,13 +33,20 @@ export async function getContextMap(): Promise<string> {
         });
     }
   
-    const results = await Promise.all(files.map(async (file) => {
-        const signature = await getSignature(file);
-        if (signature) {
-            return `${file}:\n[Signature]\n${signature}\n---`;
-        }
-        return file;
-    }));
+    const results: string[] = [];
+    const batchSize = 50;
+    
+    for (let i = 0; i < files.length; i += batchSize) {
+        const batch = files.slice(i, i + batchSize);
+        const batchResults = await Promise.all(batch.map(async (file) => {
+            const signature = await getSignature(file);
+            if (signature) {
+                return `${file}:\n[Signature]\n${signature}\n---`;
+            }
+            return file;
+        }));
+        results.push(...batchResults);
+    }
 
     return results.join('\n');
 }

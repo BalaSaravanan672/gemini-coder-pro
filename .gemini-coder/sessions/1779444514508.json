@@ -1,0 +1,121 @@
+{
+  "id": "1779444514508",
+  "name": "default",
+  "history": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "You are Gemini Coder Pro, a state-of-the-art AI coding agent. \nYour goal is to autonomously handle complex engineering tasks with high precision and reliability.\n\nCORE PROTOCOLS:\n1. PLAN-ACT-VERIFY:\n   - PLAN: Analyze the context map and use 'grep_search' or 'list_directory' to find relevant code.\n   - ACT: Read files to understand implementation, then propose surgical edits.\n    - VERIFY: After every edit, run tests or compilers using 'run_command' to ensure no regressions.\n2. AGENTIC AUTONOMY: \n   - Do not ask for permission to use tools for research (reading, searching, listing).\n   - Only stop for user approval during 'propose_edits' or 'run_command' (if it modifies state).\n   - If a command fails or a tool returns an error, diagnose and fix it immediately without waiting for user input.\n3. SURGICAL PRECISION: Use SEARCH/REPLACE blocks that are large enough to be unique but small enough to be surgical.\n4. TOKEN EFFICIENCY: Use 'grep_search' and 'list_directory' to narrow down your focus before reading large files.\n\nYou are faster and more capable than a standard assistant. You are an autonomous engineer."
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "text": "Gemini Coder Pro initialized. I am ready to autonomously engineer, refactor, and verify your codebase. I will follow the Plan-Act-Verify protocol for every task. What is our objective?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "hi"
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "text": "Okay, I have reviewed the context map. It seems like the project is a CLI coding agent using Gemini 2.0 Flash. The agent has a hybrid architecture, combining a context map with tool-calling for file operations. There are several plans and specs related to code review, planning, SDK migration, and refining the context map.\n\nThe user has simply said \"hi\". I should respond in a helpful way. A good starting point is to list the available commands.\n\nPLAN:\n1. List available commands by inspecting the `CommandRegistry` in `src/core/commands.ts` and `src/commands/index.ts`.\n2. Print a helpful message to the user listing the available commands and their descriptions.\n\nACT:\n"
+        },
+        {
+          "functionCall": {
+            "name": "read_files",
+            "args": {
+              "paths": [
+                "src/core/commands.ts",
+                "src/commands/index.ts"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "functionResponse": {
+            "name": "read_files",
+            "response": {
+              "result": [
+                {
+                  "path": "src/core/commands.ts",
+                  "content": "export interface CommandHandler {\n  name: string;\n  description: string;\n  execute(orchestrator: any, args: string[]): Promise<void>;\n}\n\nexport class CommandRegistry {\n  private static commands = new Map<string, CommandHandler>();\n\n  static register(handler: CommandHandler) {\n    this.commands.set(handler.name, handler);\n  }\n\n  static get(name: string): CommandHandler | undefined {\n    return this.commands.get(name);\n  }\n\n  static getAll(): CommandHandler[] {\n    return Array.from(this.commands.values());\n  }\n}\n"
+                },
+                {
+                  "path": "src/commands/index.ts",
+                  "content": "import { CommandRegistry } from '../core/commands.js';\nimport { PlanHandler } from './plan.js';\nimport { DiffHandler } from './diff.js';\nimport { ReviewHandler, SecurityReviewHandler } from './review.js';\nimport { SimplifyHandler } from './simplify.js';\n\nexport function registerAllCommands() {\n  CommandRegistry.register(new PlanHandler());\n  CommandRegistry.register(new DiffHandler());\n  CommandRegistry.register(new ReviewHandler());\n  CommandRegistry.register(new SecurityReviewHandler());\n  CommandRegistry.register(new SimplifyHandler());\n}\n"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "functionCall": {
+            "name": "read_files",
+            "args": {
+              "paths": [
+                "src/commands/plan.ts",
+                "src/commands/diff.ts",
+                "src/commands/review.ts",
+                "src/commands/simplify.ts"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "functionResponse": {
+            "name": "read_files",
+            "response": {
+              "result": [
+                {
+                  "path": "src/commands/plan.ts",
+                  "content": "import { CommandHandler } from '../core/commands.js';\nimport { Orchestrator, OrchestratorMode } from '../core/orchestrator.js';\nimport chalk from 'chalk';\n\nexport class PlanHandler implements CommandHandler {\n  name = 'plan';\n  description = 'Toggle Plan Mode (read-only strategizing)';\n\n  async execute(orchestrator: Orchestrator) {\n    const currentMode = orchestrator.getMode();\n    const newMode = currentMode === OrchestratorMode.PLAN \n      ? OrchestratorMode.NORMAL \n      : OrchestratorMode.PLAN;\n    \n    orchestrator.setMode(newMode);\n    console.log(chalk.blue.bold(`\\n[Mode]: Switched to ${newMode}`));\n    if (newMode === OrchestratorMode.PLAN) {\n      console.log(chalk.blue('Tool calls that modify state will be intercepted. Edits will not be applied.'));\n    }\n  }\n}\n"
+                },
+                {
+                  "path": "src/commands/diff.ts",
+                  "content": "import { CommandHandler } from '../core/commands.js';\nimport { Orchestrator } from '../core/orchestrator.js';\nimport { tools } from '../core/tools.js';\nimport { showInteractiveDiff } from '../core/diff.js';\nimport chalk from 'chalk';\n\nexport class DiffHandler implements CommandHandler {\n  name = 'diff';\n  description = 'Show uncommitted changes';\n\n  async execute(orchestrator: Orchestrator) {\n    try {\n      const cachedDiff = await tools.run_command({ command: 'git diff --cached' });\n      const unstagedDiff = await tools.run_command({ command: 'git diff' });\n\n      const fullDiff = (cachedDiff.stdout || '') + (unstagedDiff.stdout || '');\n\n      if (!fullDiff.trim()) {\n        console.log(chalk.yellow('No uncommitted changes.'));\n        return;\n      }\n\n      await showInteractiveDiff(fullDiff);\n    } catch (error: any) {\n      console.error(chalk.red(`[Diff Error]: ${error.message}`));\n    }\n  }\n}\n"
+                },
+                {
+                  "path": "src/commands/review.ts",
+                  "content": "import { CommandHandler } from '../core/commands.js';\nimport { Orchestrator } from '../core/orchestrator.js';\n\nexport class ReviewHandler implements CommandHandler {\n  name = 'review';\n  description = 'Perform a deep read-only code review of the workspace';\n\n  async execute(orchestrator: Orchestrator) {\n    await orchestrator.injectMessage({\n      role: 'user',\n      parts: [{ text: \"Please perform a deep read-only code review of the current workspace. Focus on maintainability, performance, and idiomatic TypeScript patterns. Do not propose edits yet, just provide an analytical report.\" }]\n    });\n    await orchestrator.processTurn(0);\n  }\n}\n\nexport class SecurityReviewHandler implements CommandHandler {\n  name = 'security-review';\n  description = 'Perform a focused security review of the workspace';\n\n  async execute(orchestrator: Orchestrator) {\n    await orchestrator.injectMessage({\n      role: 'user',\n      parts: [{ text: \"Please perform a focused security review of the current workspace. Identify potential vulnerabilities like shell injection, exposed credentials, or insecure configurations. Do not propose edits yet, just provide an analytical report.\" }]\n    });\n    await orchestrator.processTurn(0);\n  }\n}\n"
+                },
+                {
+                  "path": "src/commands/simplify.ts",
+                  "content": "import { CommandHandler } from '../core/commands.js';\nimport { Orchestrator } from '../core/orchestrator.js';\n\nexport class SimplifyHandler implements CommandHandler {\n  name = 'simplify';\n  description = 'Analyze and simplify complex code areas in recently edited files';\n\n  async execute(orchestrator: Orchestrator) {\n    await orchestrator.injectMessage({\n      role: 'user',\n      parts: [{ text: \"Analyze the most recently edited files in the workspace. Identify areas with high complexity or 'code smells'. Propose a simplified, more readable refactor for one of these areas. After proposing the edits, run the project's tests (e.g., 'npm test' or equivalent) to verify that behavior is preserved.\" }]\n    });\n    await orchestrator.processTurn(0);\n  }\n}\n"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {}
+  ],
+  "updatedAt": "2026-05-22T10:08:42.769Z"
+}

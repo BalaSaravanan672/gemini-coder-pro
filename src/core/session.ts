@@ -9,6 +9,11 @@ export interface Session {
   name: string;
   history: Content[];
   updatedAt: string;
+  tokens?: {
+    prompt: number;
+    candidates: number;
+    total: number;
+  };
 }
 
 export class SessionManager {
@@ -21,7 +26,9 @@ export class SessionManager {
   private async ensureDirectory() {
     try {
       await fs.mkdir(SESSIONS_DIR, { recursive: true });
-    } catch (e) {}
+    } catch (e: any) {
+      console.warn(`\n[System Warning]: Failed to ensure sessions directory at ${SESSIONS_DIR}. Error: ${e.message}`);
+    }
   }
 
   async createSession(name = 'default'): Promise<Session> {
@@ -30,7 +37,8 @@ export class SessionManager {
       id,
       name,
       history: [],
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      tokens: { prompt: 0, candidates: 0, total: 0 }
     };
     await this.saveSession(session);
     this.currentSessionId = id;

@@ -1,5 +1,7 @@
+// This is a comment
 import { Command } from 'commander';
 import chalk from 'chalk';
+import Table from 'cli-table3';
 import { SessionManager } from './core/session.js';
 import { Orchestrator } from './core/orchestrator.js';
 
@@ -16,15 +18,17 @@ program
   .description('Start an interactive chat session')
   .option('-p, --prompt <query>', 'Start with an initial prompt')
   .option('-c, --continue', 'Continue the most recent session')
-  .option('-m, --model <name>', 'Specify the model to use', 'gemini-3.5-flash')
+  .option('-m, --model <name>', 'Specify the model to use', 'gemini-3.1-pro-preview')
   .action(async (options) => {
-    console.log(chalk.blue.bold('Gemini Coder Pro starting...'));
+    console.clear();
+    console.log(chalk.bold.blue('⚡ Gemini Coder Pro ' + chalk.gray('v0.2.0')));
+    console.log(chalk.gray('Initializing autonomous engineering agent...\n'));
     
     let session;
     if (options.continue) {
       session = await sessionManager.getLatestSession();
       if (session) {
-        console.log(chalk.gray(`Resuming session: ${session.id}`));
+        console.log(chalk.green(`✓ Resuming session: ${session.id}`));
       }
     }
     
@@ -32,7 +36,7 @@ program
       session = await sessionManager.createSession();
     }
 
-    const orchestrator = new Orchestrator(session, sessionManager);
+    const orchestrator = new Orchestrator(session, sessionManager, options.model);
     await orchestrator.initialize();
     
     if (options.prompt) {
@@ -41,12 +45,6 @@ program
     }
 
     await orchestrator.chat();
-
-    // Execute test commands
-    await orchestrator.handleSlashCommand('/plan');
-    await orchestrator.handleSlashCommand('/diff');
-    await orchestrator.handleSlashCommand('/review');
-    await orchestrator.handleSlashCommand('/simplify');
   });
 
 program
@@ -55,13 +53,25 @@ program
   .action(async () => {
     const sessions = await sessionManager.listSessions();
     if (sessions.length === 0) {
-      console.log('No sessions found.');
+      console.log(chalk.yellow('No sessions found.'));
       return;
     }
-    console.log(chalk.bold('\nRecent Sessions:'));
-    sessions.forEach(s => {
-      console.log(`${chalk.cyan(s.id)} - ${chalk.gray(s.updatedAt)}`);
+    
+    console.log(chalk.bold.blue('\n📊 Recent Sessions:'));
+    const table = new Table({
+      head: [chalk.cyan('Session ID'), chalk.cyan('Last Updated'), chalk.cyan('Tokens (Total)')],
+      style: { head: [], border: [] }
     });
+    
+    sessions.forEach(s => {
+      table.push([
+        s.id,
+        new Date(s.updatedAt).toLocaleString(),
+        s.tokens?.total?.toLocaleString() || '0'
+      ]);
+    });
+    
+    console.log(table.toString());
   });
 
 program.parse();

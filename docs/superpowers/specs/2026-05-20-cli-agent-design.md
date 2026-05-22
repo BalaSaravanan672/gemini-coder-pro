@@ -1,3 +1,17 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Design Spec: Hybrid CLI Coding Agent (Aider-style)
 
 **Date:** 2026-05-20

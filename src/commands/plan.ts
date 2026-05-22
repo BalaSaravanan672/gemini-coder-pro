@@ -4,7 +4,7 @@ import chalk from 'chalk';
 
 export class PlanHandler implements CommandHandler {
   name = 'plan';
-  description = 'Toggle Plan Mode (read-only strategizing)';
+  description = 'Enter read-only mode. Research and plan only, no edits.';
 
   async execute(orchestrator: Orchestrator) {
     const currentMode = orchestrator.getMode();

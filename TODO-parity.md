@@ -3,7 +3,6 @@
 - [x] Task 1: Infrastructure - Command Registry
 - [x] Task 2: Orchestrator Refactor - Mode Support & Command Routing
 - [x] Task 3: Feature - Plan Mode (/plan)
-- [ ] Task 4: Feature - Interactive Diff (/diff)
-- [ ] Task 5: Feature - Review & Security Review
-- [ ] Task 6: Feature - Simplify (/simplify)
-// Test diff
+- [x] Task 4: Feature - Interactive Diff (/diff)
+- [x] Task 5: Feature - Review & Security Review
+- [x] Task 6: Feature - Simplify (/simplify)

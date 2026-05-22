@@ -6,7 +6,7 @@ import chalk from 'chalk';
 
 export class DiffHandler implements CommandHandler {
   name = 'diff';
-  description = 'Show uncommitted changes';
+  description = 'Show interactive diff of all uncommitted changes';
 
   async execute(orchestrator: Orchestrator) {
     try {

@@ -3,12 +3,12 @@ import { Orchestrator } from '../core/orchestrator.js';
 
 export class ReviewHandler implements CommandHandler {
   name = 'review';
-  description = 'Perform a deep read-only code review of the workspace';
+  description = 'Deep security and code quality review. Read-only.';
 
   async execute(orchestrator: Orchestrator) {
     await orchestrator.injectMessage({
       role: 'user',
-      parts: [{ text: "Please perform a deep read-only code review of the current workspace. Focus on maintainability, performance, and idiomatic TypeScript patterns. Do not propose edits yet, just provide an analytical report." }]
+      parts: [{ text: "Perform a deep read-only code review. Focus on maintainability, performance, and idiomatic TypeScript. Output an analytical report. Do not propose edits." }]
     });
     await orchestrator.processTurn(0);
   }
@@ -16,12 +16,12 @@ export class ReviewHandler implements CommandHandler {
 
 export class SecurityReviewHandler implements CommandHandler {
   name = 'security-review';
-  description = 'Perform a focused security review of the workspace';
+  description = 'Focused security review. Read-only.';
 
   async execute(orchestrator: Orchestrator) {
     await orchestrator.injectMessage({
       role: 'user',
-      parts: [{ text: "Please perform a focused security review of the current workspace. Identify potential vulnerabilities like shell injection, exposed credentials, or insecure configurations. Do not propose edits yet, just provide an analytical report." }]
+      parts: [{ text: "Perform a focused security review. Identify vulnerabilities (injection, secrets, insecure config). Output an analytical report. Do not propose edits." }]
     });
     await orchestrator.processTurn(0);
   }

@@ -1,0 +1,27 @@
+<h2>Section 3: Success Criteria & Verification</h2>
+<p class="subtitle">Ensuring reliability and quality</p>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>Success Metrics</h4>
+    <ul>
+      <li><strong>Interactive Reliability:</strong> /diff correctly renders hunks and applies them without corruption.</li>
+      <li><strong>Mode Isolation:</strong> Plan Mode strictly prevents file writes while allowing research.</li>
+      <li><strong>Review Depth:</strong> /security-review identifies known patterns (e.g., shell injection in run_command).</li>
+      <li><strong>Safe Refactoring:</strong> /simplify never commits code that fails the test suite.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Verification Strategy</h3>
+  <div class="mockup">
+    <div class="mockup-body">
+      <ol>
+        <li><strong>Unit Tests:</strong> Test CommandRegistry and Individual Handlers in isolation.</li>
+        <li><strong>Integration Tests:</strong> Mock the AI response to verify /plan intercepts correctly.</li>
+        <li><strong>Manual QA:</strong> Walk through a complex refactor using /plan -> /simplify -> /diff.</li>
+      </ol>
+    </div>
+  </div>
+</div>

@@ -33,12 +33,18 @@ export const tools = {
   },
   run_command: async ({ command }: { command: string }) => {
     try {
-      const { stdout, stderr } = await execAsync(command, { timeout: 60000 });
-      return { stdout, stderr, exitCode: 0 };
+      // 5MB buffer to prevent ERR_CHILD_PROCESS_STDIO_MAXBUFFER
+      const { stdout, stderr } = await execAsync(command, { timeout: 60000, maxBuffer: 1024 * 1024 * 5 });
+      // Truncate massive outputs so they don't blow out the LLM context window
+      return { 
+        stdout: stdout ? stdout.slice(0, 50000) : '', 
+        stderr: stderr ? stderr.slice(0, 50000) : '', 
+        exitCode: 0 
+      };
     } catch (error: any) {
       return {
-        stdout: error.stdout || '',
-        stderr: error.stderr || error.message,
+        stdout: error.stdout ? error.stdout.slice(0, 50000) : '',
+        stderr: (error.stderr || error.message).slice(0, 50000),
         exitCode: error.code || 1
       };
     }

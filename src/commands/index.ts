@@ -3,6 +3,11 @@ import { PlanHandler } from './plan.js';
 import { DiffHandler } from './diff.js';
 import { ReviewHandler, SecurityReviewHandler } from './review.js';
 import { SimplifyHandler } from './simplify.js';
+import { UsageHandler } from './usage.js';
+import { CommitHandler } from './commit.js';
+import { TestHandler } from './test.js';
+import { UndoHandler } from './undo.js';
+import { ContextHandler } from './context.js';
 
 export function registerAllCommands() {
   CommandRegistry.register(new PlanHandler());
@@ -10,4 +15,9 @@ export function registerAllCommands() {
   CommandRegistry.register(new ReviewHandler());
   CommandRegistry.register(new SecurityReviewHandler());
   CommandRegistry.register(new SimplifyHandler());
+  CommandRegistry.register(new UsageHandler());
+  CommandRegistry.register(new CommitHandler());
+  CommandRegistry.register(new TestHandler());
+  CommandRegistry.register(new UndoHandler());
+  CommandRegistry.register(new ContextHandler());
 }
