@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { GoogleAuth } from 'google-auth-library';
 import fs from 'fs';
 
 const credentialsPath = './gemini.json';
@@ -9,11 +10,24 @@ if (!fs.existsSync(credentialsPath)) {
 
 const config = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
 
+// Manual Auth Bridge: Generate a short-lived access token
+async function getAuthToken() {
+  const auth = new GoogleAuth({
+    keyFile: credentialsPath,
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  });
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+  return token.token;
+}
+
+const token = await getAuthToken();
+
 export const client = new GoogleGenAI({
   project: config.project_id,
-  location: 'us-central1',
+  location: 'global',
   vertexai: true,
-  googleAuthOptions: {
-    keyFile: credentialsPath,
-  },
+  headers: {
+    'Authorization': 'Bearer ' + token
+  }
 });
