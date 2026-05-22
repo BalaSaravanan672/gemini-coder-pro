@@ -3,7 +3,7 @@ import { getContextMap } from './context.js';
 import { tools } from './tools.js';
 import { showDiff } from './diff.js';
 import chalk from 'chalk';
-import { Content, FunctionDeclarationSchemaType, Part, FunctionDeclaration } from '@google-cloud/vertexai';
+import { Content, Part, FunctionDeclaration, SchemaType } from '@google/generative-ai';
 import { Session, SessionManager } from './session.js';
 import * as readline from 'readline/promises';
 import { CommandRegistry } from './commands.js';
@@ -24,11 +24,11 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'read_files',
     description: 'Read the contents of one or more files.',
     parameters: {
-      type: FunctionDeclarationSchemaType.OBJECT,
+      type: SchemaType.OBJECT,
       properties: {
         paths: {
-          type: FunctionDeclarationSchemaType.ARRAY,
-          items: { type: FunctionDeclarationSchemaType.STRING },
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
           description: 'The paths of the files to read.',
         },
       },
@@ -39,10 +39,10 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'run_command',
     description: 'Execute a shell command in the local terminal.',
     parameters: {
-      type: FunctionDeclarationSchemaType.OBJECT,
+      type: SchemaType.OBJECT,
       properties: {
         command: {
-          type: FunctionDeclarationSchemaType.STRING,
+          type: SchemaType.STRING,
           description: 'The shell command to execute.',
         },
       },
@@ -53,10 +53,10 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'grep_search',
     description: 'Search for a pattern across the codebase (grep).',
     parameters: {
-      type: FunctionDeclarationSchemaType.OBJECT,
+      type: SchemaType.OBJECT,
       properties: {
-        pattern: { type: FunctionDeclarationSchemaType.STRING, description: 'The regex pattern to search for.' },
-        include: { type: FunctionDeclarationSchemaType.STRING, description: 'Optional glob for files to include (e.g. "*.ts").' },
+        pattern: { type: SchemaType.STRING, description: 'The regex pattern to search for.' },
+        include: { type: SchemaType.STRING, description: 'Optional glob for files to include (e.g. "*.ts").' },
       },
       required: ['pattern'],
     },
@@ -65,9 +65,9 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'list_directory',
     description: 'List the contents of a specific directory.',
     parameters: {
-      type: FunctionDeclarationSchemaType.OBJECT,
+      type: SchemaType.OBJECT,
       properties: {
-        path: { type: FunctionDeclarationSchemaType.STRING, description: 'The directory path (default ".").' },
+        path: { type: SchemaType.STRING, description: 'The directory path (default ".").' },
       },
     },
   },
@@ -75,16 +75,16 @@ const functionDeclarations: FunctionDeclaration[] = [
     name: 'propose_edits',
     description: 'Propose surgical edits to files using search/replace blocks.',
     parameters: {
-      type: FunctionDeclarationSchemaType.OBJECT,
+      type: SchemaType.OBJECT,
       properties: {
         edits: {
-          type: FunctionDeclarationSchemaType.ARRAY,
+          type: SchemaType.ARRAY,
           items: {
-            type: FunctionDeclarationSchemaType.OBJECT,
+            type: SchemaType.OBJECT,
             properties: {
-              path: { type: FunctionDeclarationSchemaType.STRING },
-              search: { type: FunctionDeclarationSchemaType.STRING, description: 'The EXACT literal text to find.' },
-              replace: { type: FunctionDeclarationSchemaType.STRING, description: 'The text to replace it with.' },
+              path: { type: SchemaType.STRING },
+              search: { type: SchemaType.STRING, description: 'The EXACT literal text to find.' },
+              replace: { type: SchemaType.STRING, description: 'The text to replace it with.' },
             },
             required: ['path', 'search', 'replace'],
           },
@@ -95,7 +95,7 @@ const functionDeclarations: FunctionDeclaration[] = [
   },
 ];
 
-const MAX_TURNS = 20;
+const MAX_TURNS = 50;
 const MAX_RETRIES = 3;
 
 export class Orchestrator {
@@ -196,7 +196,7 @@ You are faster and more capable than a standard assistant. You are an autonomous
     }
   }
 
-  private async handleSlashCommand(command: string) {
+  public async handleSlashCommand(command: string) {
     const [cmd, ...args] = command.slice(1).split(' ');
     
     // Check registry first
@@ -256,23 +256,25 @@ You are faster and more capable than a standard assistant. You are an autonomous
       }));
 
       const response = result.response;
-      if (!response.candidates || response.candidates.length === 0) return;
+      
+      // Use helper methods to extract content
+      const text = response.text ? response.text() : "";
+      if (text) {
+        console.log(chalk.cyan(`\nGemini: ${text}`));
+      }
 
-      const candidate = response.candidates[0];
-      const message = candidate.content;
-
-      if (!message || !message.parts) return;
-
-      this.session.history.push(message);
+      const functionCalls = response.functionCalls ? response.functionCalls() : [];
+      
+      // Add model's response to history
+      if (response.candidates && response.candidates.length > 0) {
+        this.session.history.push(response.candidates[0].content);
+      }
 
       const toolResponses: Part[] = [];
 
-      for (const part of message.parts) {
-        if (part.text) {
-          console.log(chalk.cyan(`\nGemini: ${part.text}`));
-        }
-        if (part.functionCall) {
-          const { name, args } = part.functionCall;
+      if (functionCalls && functionCalls.length > 0) {
+        for (const call of functionCalls) {
+          const { name, args } = call;
           console.log(chalk.yellow(`\n[Tool Call]: ${name}(${JSON.stringify(args)})`));
 
           let functionResponse;
