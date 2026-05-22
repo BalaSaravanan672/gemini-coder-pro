@@ -42,5 +42,27 @@ export const tools = {
         exitCode: error.code || 1
       };
     }
+  },
+  grep_search: async ({ pattern, include }: { pattern: string, include?: string }) => {
+    try {
+      // Use grep -rnIE (recursive, line numbers, ignore binary, extended regex)
+      const includeFlag = include ? `--include="${include}"` : '';
+      const command = `grep -rnIE "${pattern}" . ${includeFlag} --exclude-dir={node_modules,dist,.git}`;
+      const { stdout, stderr } = await execAsync(command, { timeout: 30000 });
+      return { results: stdout, stderr };
+    } catch (error: any) {
+      // grep returns exit code 1 if no matches found
+      if (error.code === 1) return { results: '', message: 'No matches found.' };
+      return { results: '', error: error.message };
+    }
+  },
+  list_directory: async ({ path = '.' }: { path?: string }) => {
+    try {
+      const entries = await fs.readdir(path, { withFileTypes: true });
+      const results = entries.map(e => `${e.isDirectory() ? 'DIR ' : 'FILE'} ${e.name}`).join('\n');
+      return { path, results };
+    } catch (error: any) {
+      return { error: error.message };
+    }
   }
 };

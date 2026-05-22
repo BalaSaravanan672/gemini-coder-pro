@@ -16,22 +16,27 @@ const history: Content[] = [
   {
     role: 'user',
     parts: [{
-      text: `You are Gemini Coder, an expert AI pair programmer similar to Aider or Claude Code.
-You have direct access to the user's local workspace via tools.
+      text: `You are Gemini Coder Pro, a state-of-the-art AI coding agent. 
+Your goal is to autonomously handle complex engineering tasks with high precision and reliability.
 
-GUIDELINES:
-1. PROACTIVE: Do not just offer to help. If the user asks for a change, use 'read_files' to understand the code, 'propose_edits' to implement it, and 'run_command' to verify it.
-2. SURGICAL: When using 'propose_edits', use specific SEARCH/REPLACE blocks. Keep changes focused.
-3. TERMINAL ACCESS: You can run shell commands using 'run_command'. Use it for testing, linting, or checking the environment.
-4. AWARE: You will receive a 'Context Map' with every message. Use it to find the files you need.
-5. HONEST: If you are unsure, read more files or run tests before proposing edits.
+CORE PROTOCOLS:
+1. PLAN-ACT-VERIFY:
+   - PLAN: Analyze the context map and use 'grep_search' or 'list_directory' to find relevant code.
+   - ACT: Read files to understand implementation, then propose surgical edits.
+   - VERIFY: After every edit, run tests or compilers using 'run_command' to ensure no regressions.
+2. AGENTIC AUTONOMY: 
+   - Do not ask for permission to use tools for research (reading, searching, listing).
+   - Only stop for user approval during 'propose_edits' or 'run_command' (if it modifies state).
+   - If a command fails or a tool returns an error, diagnose and fix it immediately without waiting for user input.
+3. SURGICAL PRECISION: Use SEARCH/REPLACE blocks that are large enough to be unique but small enough to be surgical.
+4. TOKEN EFFICIENCY: Use 'grep_search' and 'list_directory' to narrow down your focus before reading large files.
 
-Your goal is to autonomously implement features, fix bugs, and refactor code as requested.`
+You are faster and more capable than a standard assistant. You are an autonomous engineer.`
     }]
   },
   {
     role: 'model',
-    parts: [{ text: "Understood. I am Gemini Coder, ready to help you build, refactor, and test your project. I will use the provided tools to read your code, propose surgical edits, and run commands as needed. What shall we work on first?" }]
+    parts: [{ text: "Gemini Coder Pro initialized. I am ready to autonomously engineer, refactor, and verify your codebase. I will follow the Plan-Act-Verify protocol for every task. What is our objective?" }]
   }
 ];
 
@@ -66,8 +71,30 @@ const functionDeclarations: FunctionDeclaration[] = [
     },
   },
   {
+    name: 'grep_search',
+    description: 'Search for a pattern across the codebase (grep).',
+    parameters: {
+      type: FunctionDeclarationSchemaType.OBJECT,
+      properties: {
+        pattern: { type: FunctionDeclarationSchemaType.STRING, description: 'The regex pattern to search for.' },
+        include: { type: FunctionDeclarationSchemaType.STRING, description: 'Optional glob for files to include (e.g. "*.ts").' },
+      },
+      required: ['pattern'],
+    },
+  },
+  {
+    name: 'list_directory',
+    description: 'List the contents of a specific directory.',
+    parameters: {
+      type: FunctionDeclarationSchemaType.OBJECT,
+      properties: {
+        path: { type: FunctionDeclarationSchemaType.STRING, description: 'The directory path (default ".").' },
+      },
+    },
+  },
+  {
     name: 'propose_edits',
-    description: 'Propose edits to one or more files.',
+    description: 'Propose surgical edits to files using search/replace blocks.',
     parameters: {
       type: FunctionDeclarationSchemaType.OBJECT,
       properties: {
@@ -77,8 +104,8 @@ const functionDeclarations: FunctionDeclaration[] = [
             type: FunctionDeclarationSchemaType.OBJECT,
             properties: {
               path: { type: FunctionDeclarationSchemaType.STRING },
-              search: { type: FunctionDeclarationSchemaType.STRING },
-              replace: { type: FunctionDeclarationSchemaType.STRING },
+              search: { type: FunctionDeclarationSchemaType.STRING, description: 'The EXACT literal text to find.' },
+              replace: { type: FunctionDeclarationSchemaType.STRING, description: 'The text to replace it with.' },
             },
             required: ['path', 'search', 'replace'],
           },
@@ -89,13 +116,13 @@ const functionDeclarations: FunctionDeclaration[] = [
   },
 ];
 
-const MAX_TURNS = 10;
+const MAX_TURNS = 20;
 
 async function main() {
-  console.log(chalk.blue('Gemini Coder REPL Started. Type "exit" to quit.'));
+  console.log(chalk.blue.bold('Gemini Coder Pro REPL Started. Type "exit" to quit.'));
 
   while (true) {
-    const userInput = await rl.question(chalk.green('\nYou: '));
+    const userInput = await rl.question(chalk.green.bold('\nYou: '));
     if (userInput.toLowerCase() === 'exit') break;
 
     history.push({ role: 'user', parts: [{ text: userInput }] });
@@ -120,12 +147,12 @@ async function processTurn(turnCount: number) {
       parts: (item.parts || []).map(part => ({ ...part }))
     }));
     
-    // Inject the latest context map into the most recent user message for the model's awareness
+    // Inject the latest context map into the most recent user message
     for (let i = contents.length - 1; i >= 0; i--) {
       if (contents[i].role === 'user') {
         const parts = contents[i].parts;
         if (parts.length > 0 && 'text' in parts[0]) {
-          parts[0].text = `Context:\n${contextMap}\n\nUser: ${parts[0].text}`;
+          parts[0].text = `CONTEXT_MAP:\n${contextMap}\n\nUSER_REQUEST: ${parts[0].text}`;
         }
         break;
       }
@@ -137,18 +164,12 @@ async function processTurn(turnCount: number) {
     });
 
     const response = result.response;
-    if (!response.candidates || response.candidates.length === 0) {
-        console.log(chalk.red('No candidates in response.'));
-        return;
-    }
+    if (!response.candidates || response.candidates.length === 0) return;
 
     const candidate = response.candidates[0];
     const message = candidate.content;
 
-    if (!message || !message.parts) {
-      console.log(chalk.red('\n[Gemini Error]: Received an empty or malformed response.'));
-      return;
-    }
+    if (!message || !message.parts) return;
 
     history.push(message);
 
@@ -165,6 +186,10 @@ async function processTurn(turnCount: number) {
         let functionResponse;
         if (name === 'read_files') {
           functionResponse = await tools.read_files(args as any);
+        } else if (name === 'list_directory') {
+          functionResponse = await tools.list_directory(args as any);
+        } else if (name === 'grep_search') {
+          functionResponse = await tools.grep_search(args as any);
         } else if (name === 'run_command') {
           const { command } = args as { command: string };
           console.log(chalk.bold(`\nProposed command: ${chalk.cyan(command)}`));
@@ -203,7 +228,7 @@ async function processTurn(turnCount: number) {
         role: 'function',
         parts: toolResponses
       });
-      // Recurse to handle the model's response to the tool output
+      // Recurse
       await processTurn(turnCount + 1);
     }
   } catch (error: any) {
