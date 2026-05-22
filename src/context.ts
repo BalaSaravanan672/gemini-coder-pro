@@ -1,9 +1,11 @@
-import { glob } from 'glob';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export async function getContextMap(): Promise<string> {
-  const files = await glob('**/*', { 
-    ignore: ['node_modules/**', 'dist/**', '.git/**', 'gemini.json'],
-    nodir: true 
-  });
+  const { stdout } = await execAsync('git ls-files --cached --others --exclude-standard');
+  const files = stdout.split('\n').filter(f => f.trim().length > 0);
+  
   return files.join('\n');
 }
