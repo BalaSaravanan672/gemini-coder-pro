@@ -1,7 +1,10 @@
 import { client as aiClient } from './ai.js';
 import { getContextMap } from './context.js';
 import { tools } from './tools.js';
+import { showDiff } from './diff.js';
 import chalk from 'chalk';
+import ora from 'ora';
+import highlight from 'cli-highlight';
 import { Content, Part, FunctionDeclaration, Type } from '@google/genai';
 import { Session, SessionManager } from './session.js';
 import * as readline from 'readline/promises';
@@ -9,6 +12,11 @@ import { CommandRegistry } from './commands.js';
 import { registerAllCommands } from '../commands/index.js';
 import fs from 'fs/promises';
 import path from 'path';
+import { marked } from 'marked';
+import { markedTerminal } from 'marked-terminal';
+
+// Configure marked to use terminal rendering
+marked.use(markedTerminal() as any);
 
 export const rl = readline.createInterface({
   input: process.stdin,
@@ -86,8 +94,10 @@ const functionDeclarations: FunctionDeclaration[] = [
               path: { type: Type.STRING },
               search: { type: Type.STRING, description: 'The EXACT literal text to find.' },
               replace: { type: Type.STRING, description: 'The text to replace it with.' },
+              action: { type: Type.STRING, description: 'Brief description of the action (e.g. "Replace lines 10-15").' },
+              reason: { type: Type.STRING, description: 'Technical reason for this change.' },
             },
-            required: ['path', 'search', 'replace'],
+            required: ['path', 'search', 'replace', 'action', 'reason'],
           },
         },
       },
@@ -103,10 +113,13 @@ export class Orchestrator {
   public session: Session;
   private sessionManager: SessionManager;
   private mode: OrchestratorMode = OrchestratorMode.NORMAL;
+  private model: string;
+  public appliedEdits: { path: string, originalContent: string }[] = [];
 
-  constructor(session: Session, sessionManager: SessionManager) {
+  constructor(session: Session, sessionManager: SessionManager, model: string = 'gemini-3.1-pro-preview') {
     this.session = session;
     this.sessionManager = sessionManager;
+    this.model = model;
   }
 
   public async initialize() {
@@ -124,7 +137,7 @@ export class Orchestrator {
       });
       this.session.history.push({
         role: 'model',
-        parts: [{ text: "Gemini Coder Pro initialized. I am ready to autonomously engineer, refactor, and verify your codebase. I will follow the Plan-Act-Verify protocol for every task. What is our objective?" }]
+        parts: [{ text: "Gemini Coder Pro initialized. Precision coding agent active. Objective?" }]
       });
     }
   }
@@ -171,10 +184,14 @@ export class Orchestrator {
   }
 
   async chat() {
-    console.log(chalk.blue.bold('\nGemini Coder Pro REPL Started. Type "exit" to quit, "/" for commands.'));
+    console.log(chalk.gray('Type "exit" to quit, "/" for commands.\n'));
 
     while (true) {
-      const userInput = await rl.question(chalk.green.bold('\nYou: '));
+      const modeColor = this.mode === OrchestratorMode.PLAN ? chalk.magenta : chalk.green;
+      const promptText = chalk.bold(`${modeColor(`[${this.mode}]`)} ❯ `);
+      
+      const userInput = await rl.question(promptText);
+      if (userInput.trim() === '') continue;
       if (userInput.toLowerCase() === 'exit') break;
       
       if (userInput.startsWith('/')) {
@@ -232,7 +249,7 @@ export class Orchestrator {
       
       const contents: Content[] = this.session.history.map(item => ({
         role: item.role,
-        parts: (item.parts || []).map(part => ({ ...part }))
+        parts: item.parts
       }));
       
       // Inject context map into last user message
@@ -245,56 +262,142 @@ export class Orchestrator {
           break;
         }
       }
-      const result = await this.withRetry(() => aiClient.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents,
-        config: {
-          tools: [{ functionDeclarations }],
-        }
-      }));
-
-      const candidate = result.candidates?.[0];
-      if (!candidate?.content) return;
-      const message = candidate.content;
-      this.session.history.push(message);
-
-      const textParts = message.parts?.filter(p => p.text).map(p => p.text).join('') || '';
-      if (textParts) {
-        console.log(chalk.cyan(`\nGemini: ${textParts}`));
+      
+      const spinner = ora(chalk.cyan('Thinking...')).start();
+      let responseStream;
+      try {
+        responseStream = await this.withRetry(async () => await aiClient.models.generateContentStream({
+          model: this.model,
+          contents,
+          config: {
+            tools: [{ functionDeclarations }],
+          }
+        }));
+      } catch (err: any) {
+        spinner.fail(chalk.red('API Error'));
+        console.error(chalk.red(`\n[API Error]: ${err.message || err}`));
+        return;
       }
 
-      const functionCalls = result.functionCalls;
+      let responseParts: Part[] = [];
+      let finalUsageMetadata: any = null;
+      let isFirstChunk = true;
+      let functionCalls: any[] = [];
+
+      for await (const chunk of responseStream) {
+        if (isFirstChunk) {
+          spinner.stop();
+          console.log(chalk.blue.bold('\nGemini:'));
+          isFirstChunk = false;
+        }
+
+        const candidate = chunk.candidates?.[0];
+        if (candidate?.content?.parts) {
+          responseParts.push(...candidate.content.parts);
+        }
+
+        if (chunk.text) {
+          const formattedText = marked.parse(chunk.text) as string;
+          process.stdout.write(formattedText);
+        }
+
+        if (chunk.functionCalls) {
+          functionCalls.push(...chunk.functionCalls);
+        }
+        
+        if (chunk.usageMetadata) {
+          finalUsageMetadata = chunk.usageMetadata;
+        }
+      }
+      
+      if (!isFirstChunk) {
+        console.log(); // Newline after stream completes
+      } else {
+        spinner.stop();
+      }
+
+      if (responseParts.length === 0) return;
+      
+      // Update token tracking
+      if (finalUsageMetadata) {
+        if (!this.session.tokens) {
+          this.session.tokens = { prompt: 0, candidates: 0, total: 0 };
+        }
+        this.session.tokens.prompt += (finalUsageMetadata.promptTokenCount || 0);
+        this.session.tokens.candidates += (finalUsageMetadata.candidatesTokenCount || 0);
+        this.session.tokens.total += (finalUsageMetadata.totalTokenCount || 0);
+      }
+
+      this.session.history.push({ role: 'model', parts: responseParts });
+
       if (functionCalls && functionCalls.length > 0) {
-        const toolResponses: Part[] = [];
-        for (const call of functionCalls) {
+        const toolResponses: Part[] = new Array(functionCalls.length);
+        
+        const executeCall = async (call: any, index: number) => {
           const { name, args } = call;
-          console.log(chalk.yellow(`\n[Tool Call]: ${name}(${JSON.stringify(args)})`));
+          const progressLabel = chalk.blue(`● Executing ${name}...`);
+          process.stdout.write(progressLabel);
 
           let functionResponse;
           try {
-            if (name === 'read_files') {
-              functionResponse = await tools.read_files(args as any);
-            } else if (name === 'list_directory') {
-              functionResponse = await tools.list_directory(args as any);
-            } else if (name === 'grep_search') {
-              functionResponse = await tools.grep_search(args as any);
-            } else if (name === 'run_command') {
-              functionResponse = await tools.run_command(args as any);
-            } else if (name === 'propose_edits') {
-              functionResponse = await tools.propose_edits(args as any);
-            } else {
+            // Centralized Plan Mode interception
+            if (this.mode === OrchestratorMode.PLAN && ['run_command', 'propose_edits'].includes(name)) {
+              functionResponse = { error: `Plan Mode: ${name} is intercepted and not applied.` };
+            } 
+            // Specialized interactive tool
+            else if (name === 'propose_edits') {
+              const { edits } = args as { edits: any[] };
+              const results = [];
+              for (const edit of edits || []) {
+                const { success, originalContent } = await showDiff(edit.path, edit.search, edit.replace, edit.action, edit.reason);
+                if (success && originalContent) {
+                  this.appliedEdits.push({ path: edit.path, originalContent });
+                }
+                results.push({ path: edit.path, applied: success });
+              }
+              functionResponse = { results };
+            } 
+            // Dynamic routing for all other registered tools
+            else if (name in tools) {
+              functionResponse = await (tools as any)[name](args || {});
+            } 
+            else {
               functionResponse = { error: `Unknown tool: ${name}` };
             }
+            
+            // Clear progress line and show success
+            process.stdout.clearLine(0);
+            process.stdout.cursorTo(0);
+            console.log(chalk.green(`✓ ${name} complete`));
           } catch (error: any) {
+            process.stdout.clearLine(0);
+            process.stdout.cursorTo(0);
+            console.log(chalk.red(`✗ ${name} failed`));
             functionResponse = { error: error.message || String(error) };
           }
 
-          toolResponses.push({
+          toolResponses[index] = {
             functionResponse: {
               name: name,
               response: { result: functionResponse }
             }
-          });
+          };
+        };
+
+        const parallelPromises = [];
+        for (let i = 0; i < functionCalls.length; i++) {
+          const call = functionCalls[i];
+          if (['read_files', 'list_directory', 'grep_search'].includes(call.name || '')) {
+            parallelPromises.push(executeCall(call, i));
+          }
+        }
+        await Promise.all(parallelPromises);
+
+        for (let i = 0; i < functionCalls.length; i++) {
+          const call = functionCalls[i];
+          if (!['read_files', 'list_directory', 'grep_search'].includes(call.name || '')) {
+            await executeCall(call, i);
+          }
         }
 
         this.session.history.push({
