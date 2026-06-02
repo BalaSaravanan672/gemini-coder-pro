@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import * as diff from 'diff';
 import chalk from 'chalk';
-import { rl } from './orchestrator.js';
+import { Orchestrator } from './orchestrator.js';
 
 function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -26,7 +26,7 @@ function flexibleSearch(content: string, search: string): { start: number, end: 
   return null;
 }
 
-export async function showDiff(path: string, search: string, replace: string, action: string = 'Replace content', reason: string = 'Requested change', autoApply: boolean = false): Promise<{ success: boolean, originalContent?: string }> {
+export async function showDiff(orchestrator: Orchestrator, path: string, search: string, replace: string, action: string = 'Replace content', reason: string = 'Requested change', autoApply: boolean = false): Promise<{ success: boolean, originalContent?: string }> {
   try {
     const content = await fs.readFile(path, 'utf8');
     const match = flexibleSearch(content, search);
@@ -67,7 +67,7 @@ export async function showDiff(path: string, search: string, replace: string, ac
       console.log(pipe + chalk.yellow('  [y] Apply   [n] Skip   [d] Diff'.padEnd(boxWidth - 3)) + pipe);
       console.log(bottom);
 
-      const answer = await rl.question(chalk.yellow('Choice: '));
+      const answer = await orchestrator.rl.question(chalk.yellow('Choice: '));
       const cmd = answer.toLowerCase().trim();
       
       if (cmd === 'y') {

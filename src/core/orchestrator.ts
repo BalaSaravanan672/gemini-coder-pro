@@ -24,11 +24,6 @@ import { PromptService } from './services/prompt.js';
 // Configure marked to use terminal rendering
 marked.use(markedTerminal() as any);
 
-export const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-
 export enum OrchestratorMode {
   NORMAL = 'NORMAL',
   PLAN = 'PLAN'
@@ -55,6 +50,7 @@ export class Orchestrator {
   private model: string;
   private workspaceRoot: string;
   public autonomous: boolean = false;
+  public rl: readline.Interface;
   private forceTextResponseMode: boolean = false;
   private consecutiveToolTurns: number = 0;
   private lastTurnExecutedTools: boolean = false;
@@ -65,6 +61,10 @@ export class Orchestrator {
     this.model = model;
     this.workspaceRoot = normalizeWorkspaceRoot(workspaceRoot);
     this.autonomous = autonomous;
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
   }
 
   private async syncSessionWorkspaceRoot(): Promise<void> {
@@ -145,7 +145,7 @@ export class Orchestrator {
     while (true) {
       let userInput = '';
       try {
-        userInput = await rl.question(getPromptText(this.mode));
+        userInput = await this.rl.question(getPromptText(this.mode));
       } catch (error: any) {
         // Handle readline errors gracefully
         if (
@@ -248,7 +248,7 @@ export class Orchestrator {
       await this.sessionManager.saveSession(this.session);
     }
 
-    rl.close();
+    this.rl.close();
   }
 
   public async handleSlashCommand(command: string) {
@@ -539,7 +539,21 @@ export class Orchestrator {
         
         const executeCall = async (call: any, index: number) => {
           const { name, args } = call;
-          const progressLabel = chalk.blue(`● Executing ${name}...`);
+          
+          let displayArgs = '';
+          if (name === 'read_files' && args?.paths) {
+            displayArgs = Array.isArray(args.paths) ? args.paths.join(', ') : args.paths;
+          } else if (name === 'list_directory') {
+            displayArgs = args?.path || '.';
+          } else if (name === 'grep_search' && args?.pattern) {
+            displayArgs = `"${args.pattern}"`;
+          } else if (name === 'run_command' && args?.command) {
+            displayArgs = args.command;
+          } else if (name === 'propose_edits' && args?.edits) {
+            displayArgs = `${args.edits.length} edit(s)`;
+          }
+
+          const progressLabel = chalk.blue(`● ${name} ${displayArgs}...`);
           process.stdout.write(progressLabel);
 
           let functionResponse;
@@ -557,7 +571,7 @@ export class Orchestrator {
               const { edits } = args as { edits: any[] };
               const results = [];
               for (const edit of edits || []) {
-                const { success, originalContent } = await showDiff(edit.path, edit.search, edit.replace, edit.action, edit.reason, this.autonomous);
+                const { success, originalContent } = await showDiff(this, edit.path, edit.search, edit.replace, edit.action, edit.reason, this.autonomous);
                 if (success && originalContent) {
                   this.appliedEdits.push({ path: edit.path, originalContent });
                 }
@@ -570,7 +584,7 @@ export class Orchestrator {
               functionResponse = await (tools as any)[name](args || {});
             } 
             else {
-              functionResponse = { error: `Unknown tool: ${name}` };
+              functionResponse = { error: `Unknown tool: ${name}. Available tools are: ${Object.keys(tools).join(', ')}` };
             }
             
             // Clear progress line and show status (suppress message if tool was skipped due to text-mode)
@@ -579,15 +593,17 @@ export class Orchestrator {
             if (!this.forceTextResponseMode || functionResponse?.error?.includes?.('Tools are disabled')) {
               // Tool was executed normally or explicitly skipped; no status needed
               if (this.forceTextResponseMode) {
-                console.log(chalk.gray(`⊘ ${name} skipped (text-only mode)`));
+                console.log(chalk.gray(`⊘ ${name} ${displayArgs} (skipped)`));
+              } else if (functionResponse?.error) {
+                console.log(chalk.red(`✗ ${name} ${displayArgs} (failed)`));
               } else {
-                console.log(chalk.green(`✓ ${name} complete`));
+                console.log(chalk.green(`✓ ${name} ${displayArgs}`));
               }
             }
           } catch (error: any) {
             process.stdout.clearLine(0);
             process.stdout.cursorTo(0);
-            console.log(chalk.red(`✗ ${name} failed`));
+            console.log(chalk.red(`✗ ${name} ${displayArgs} (failed)`));
             functionResponse = { error: error.message || String(error) };
           }
 

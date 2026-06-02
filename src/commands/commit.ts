@@ -1,6 +1,6 @@
 import { CommandHandler } from '../core/commands.js';
-import { Orchestrator, rl } from '../core/orchestrator.js';
-import { tools } from '../core/tools.js';
+import { Orchestrator } from '../core/orchestrator.js';
+import { tools } from '../tools/index.js';
 import chalk from 'chalk';
 
 export class CommitHandler implements CommandHandler {
@@ -18,7 +18,7 @@ export class CommitHandler implements CommandHandler {
           return;
         }
         
-        const answer = await rl.question(chalk.yellow('No staged changes. Stage all tracked changes (git add -u)? (y/n) '));
+        const answer = await orchestrator.rl.question(chalk.yellow('No staged changes. Stage all tracked changes (git add -u)? (y/n) '));
         if (answer.toLowerCase() === 'y') {
           await tools.run_command({ command: 'git add -u' });
           diffOutput = await tools.run_command({ command: 'git diff --cached' });
@@ -32,7 +32,7 @@ export class CommitHandler implements CommandHandler {
       
       await orchestrator.injectMessage({
         role: 'user',
-        parts: [{ text: `Generate a concise, conventional commit message for these changes:\n\n${diffOutput.stdout}\n\nFormat: <type>(<scope>): <subject>\n\n<body>` }]
+        parts: [{ text: `Generate a concise, conventional commit message for these changes:\n\n\${diffOutput.stdout}\n\nFormat: <type>(<scope>): <subject>\n\n<body>` }]
       });
 
       await orchestrator.processTurn(0);
@@ -51,14 +51,14 @@ export class CommitHandler implements CommandHandler {
       console.log(chalk.bold('\nProposed Message:'));
       console.log(chalk.green(proposedMessage));
       
-      const answer = await rl.question(chalk.yellow('\n[y] Commit   [e] Edit   [n] Abort: '));
+      const answer = await orchestrator.rl.question(chalk.yellow('\n[y] Commit   [e] Edit   [n] Abort: '));
       const cmd = answer.toLowerCase().trim();
       
       if (cmd === 'y') {
         const fs = await import('fs/promises');
         const tmpPath = '.gemini-commit-msg.tmp';
         await fs.writeFile(tmpPath, proposedMessage);
-        const result = await tools.run_command({ command: `git commit -F ${tmpPath}` });
+        const result = await tools.run_command({ command: `git commit -F \${tmpPath}` });
         await fs.unlink(tmpPath).catch(() => {});
         
         if (result.exitCode === 0) {
@@ -74,7 +74,7 @@ export class CommitHandler implements CommandHandler {
       }
       
     } catch (error: any) {
-      console.error(chalk.red(`✗ Error: ${error.message}`));
+      console.error(chalk.red(`✗ Error: \${error.message}`));
     }
   }
 }

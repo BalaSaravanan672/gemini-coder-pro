@@ -1,6 +1,6 @@
 import { CommandHandler } from '../core/commands.js';
 import { Orchestrator } from '../core/orchestrator.js';
-import { tools } from '../core/tools.js';
+import { tools } from '../tools/index.js';
 import { showInteractiveDiff } from '../core/diff.js';
 import chalk from 'chalk';
 

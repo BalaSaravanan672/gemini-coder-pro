@@ -1,5 +1,5 @@
 import { FunctionDeclaration, Part, Type } from '@google/genai';
-import { tools } from '../tools.js';
+import { tools } from '../../tools/index.js';
 
 export const functionDeclarations: FunctionDeclaration[] = [
   {
@@ -92,7 +92,9 @@ export class ToolManager {
       const response = toolResponses[i] as any;
       const result = response?.functionResponse?.response?.result;
 
-      if (call?.name === 'list_directory' && result?.results) {
+      if (result?.error) {
+        summaries.push(`${call?.name || 'tool'} failed.`);
+      } else if (call?.name === 'list_directory' && result?.results) {
         summaries.push(`Listed ${result.path ?? 'the directory'} (${String(result.results).split('\n').filter(Boolean).length} entries).`);
       } else if (call?.name === 'read_files' && Array.isArray(result)) {
         summaries.push(`Read ${result.length} file${result.length === 1 ? '' : 's'}.`);
