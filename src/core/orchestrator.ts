@@ -1,6 +1,6 @@
 import { client as aiClient } from './ai.js';
 import { getContextMap } from './context.js';
-import { tools } from './tools.js';
+import { tools } from '../tools/index.js';
 import { showDiff } from './diff.js';
 import chalk from 'chalk';
 import ora from 'ora';
