@@ -8,6 +8,7 @@ import { CommitHandler } from './commit.js';
 import { TestHandler } from './test.js';
 import { UndoHandler } from './undo.js';
 import { ContextHandler } from './context.js';
+import { CdHandler } from './cd.js';
 
 export function registerAllCommands() {
   CommandRegistry.register(new PlanHandler());
@@ -20,4 +21,5 @@ export function registerAllCommands() {
   CommandRegistry.register(new TestHandler());
   CommandRegistry.register(new UndoHandler());
   CommandRegistry.register(new ContextHandler());
+  CommandRegistry.register(new CdHandler());
 }

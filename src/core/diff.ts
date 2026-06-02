@@ -26,7 +26,7 @@ function flexibleSearch(content: string, search: string): { start: number, end: 
   return null;
 }
 
-export async function showDiff(path: string, search: string, replace: string, action: string = 'Replace content', reason: string = 'Requested change'): Promise<{ success: boolean, originalContent?: string }> {
+export async function showDiff(path: string, search: string, replace: string, action: string = 'Replace content', reason: string = 'Requested change', autoApply: boolean = false): Promise<{ success: boolean, originalContent?: string }> {
   try {
     const content = await fs.readFile(path, 'utf8');
     const match = flexibleSearch(content, search);
@@ -37,7 +37,13 @@ export async function showDiff(path: string, search: string, replace: string, ac
     }
 
     const newContent = content.slice(0, match.start) + replace + content.slice(match.end);
-    
+
+    if (autoApply) {
+      console.log(chalk.yellow(`\n[Auto]: Applying proposed edit to ${path}`));
+      await fs.writeFile(path, newContent, 'utf8');
+      return { success: true, originalContent: content };
+    }
+
     while (true) {
       // ... same boxed UI code ...
       const boxWidth = 50;

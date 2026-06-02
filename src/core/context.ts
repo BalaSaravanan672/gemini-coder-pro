@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { readFile } from 'fs/promises';
+import { readFile, readdir } from 'fs/promises';
+import path from 'path';
 import { glob } from 'glob';
 
 const execAsync = promisify(exec);
@@ -20,32 +21,72 @@ async function getSignature(filePath: string): Promise<string | null> {
     }
 }
 
-export async function getContextMap(): Promise<string> {
+async function findWorkspaceRoot(startPath: string): Promise<{ root: string; isGitRepo: boolean } | null> {
+    let currentPath = startPath;
+    while (currentPath !== path.parse(currentPath).root) {
+        try {
+            await readFile(path.join(currentPath, 'package.json'), 'utf8');
+            return { root: currentPath, isGitRepo: false };
+        } catch {
+            // Keep walking upward.
+        }
+
+        try {
+            await readFile(path.join(currentPath, '.git'), 'utf8');
+            return { root: currentPath, isGitRepo: true };
+        } catch {
+            // Keep walking upward.
+        }
+
+        currentPath = path.dirname(currentPath);
+    }
+
+    return null;
+}
+
+export async function getContextMap(workspaceRoot: string = process.cwd()): Promise<string> {
+    const workspace = await findWorkspaceRoot(workspaceRoot);
+
+    if (!workspace) {
+        return '';
+    }
+
+    const { root, isGitRepo } = workspace;
+
     let files: string[] = [];
     try {
-        const { stdout } = await execAsync('git ls-files --cached --others --exclude-standard');
-        files = stdout.split('\n').filter(f => f.trim().length > 0);
+        if (isGitRepo) {
+            const { stdout } = await execAsync('git ls-files --cached --others --exclude-standard', { cwd: root });
+            files = stdout.split('\n').filter(f => f.trim().length > 0);
+        } else {
+            const entries = await readdir(root, { withFileTypes: true });
+            files = entries
+                .filter(entry => entry.isFile())
+                .map(entry => entry.name)
+                .filter(name => ['.ts', '.js', '.json', '.md', '.txt'].some(ext => name.endsWith(ext)));
+        }
     } catch (e) {
-        // Fallback to glob if not a git repository
-        files = await glob('**/*', { 
+        // Final fallback: only inspect the current directory, never the full home tree.
+        files = await glob('*', {
+            cwd: root,
             ignore: ['node_modules/**', 'dist/**', '.git/**', 'package-lock.json'],
             nodir: true 
         });
     }
   
     const results: string[] = [];
-    const batchSize = 50;
+    const SIGNATURE_LIMIT = 50;
     
-    for (let i = 0; i < files.length; i += batchSize) {
-        const batch = files.slice(i, i + batchSize);
-        const batchResults = await Promise.all(batch.map(async (file) => {
-            const signature = await getSignature(file);
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (i < SIGNATURE_LIMIT) {
+            const signature = await getSignature(path.join(root, file));
             if (signature) {
-                return `${file}:\n[Signature]\n${signature}\n---`;
+                results.push(`${file}:\n[Signature]\n${signature}\n---`);
+                continue;
             }
-            return file;
-        }));
-        results.push(...batchResults);
+        }
+        results.push(file);
     }
 
     return results.join('\n');

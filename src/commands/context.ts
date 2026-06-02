@@ -12,7 +12,7 @@ export class ContextHandler implements CommandHandler {
     for (const message of orchestrator.session.history) {
       if (message.role === 'model' && message.parts) {
         for (const part of message.parts) {
-          if (part.functionCall && part.functionCall.name === 'read_files') {
+          if (part.functionCall && part.functionCall.name === 'read_files' && part.functionCall.args) {
             const paths = part.functionCall.args.paths as string[];
             paths.forEach(p => readFiles.add(p));
           }
