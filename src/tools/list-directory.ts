@@ -23,12 +23,8 @@ export class ListDirectoryTool extends BaseTool<ListDirectoryArgs, ListDirectory
 
   protected async run(args: ListDirectoryArgs): Promise<ListDirectoryResult> {
     const dirPath = args.path || '.';
-    try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      const results = entries.map(e => `${e.isDirectory() ? 'DIR ' : 'FILE'} ${e.name}`).join('\n');
-      return { path: dirPath, results };
-    } catch (error: any) {
-      return { path: dirPath, error: error.message };
-    }
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    const results = entries.map(e => `${e.isDirectory() ? 'DIR ' : 'FILE'} ${e.name}`).join('\n');
+    return { path: dirPath, results };
   }
 }
