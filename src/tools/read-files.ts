@@ -30,20 +30,23 @@ export class ReadFilesTool extends BaseTool<ReadFilesArgs, ReadFilesResult> {
   };
 
   protected async run(args: ReadFilesArgs): Promise<ReadFilesResult> {
-    const contents = await Promise.all(args.paths.map(async p => {
-      try {
-        const content = await fs.readFile(p, 'utf8');
-        return {
-          path: p,
-          content: this.truncate(content, 12000)
-        };
-      } catch (error: any) {
-        return {
-          path: p,
-          error: error.message || String(error)
-        };
-      }
-    }));
+    const contents = await Promise.all(
+      args.paths.map(async (p) => {
+        try {
+          const content = await fs.readFile(p, 'utf8');
+          return {
+            path: p,
+            content: this.truncate(content, 12000),
+          };
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          return {
+            path: p,
+            error: message,
+          };
+        }
+      })
+    );
     return { contents };
   }
 }

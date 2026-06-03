@@ -47,22 +47,29 @@ export class GrepSearchTool extends BaseTool<GrepSearchArgs, GrepSearchResult> {
     return "'" + str.replace(/'/g, "'\\''") + "'";
   }
 
-  protected async run({ pattern, include, maxResults = 1000 }: GrepSearchArgs): Promise<GrepSearchResult> {
+  protected async run({
+    pattern,
+    include,
+    maxResults = 1000,
+  }: GrepSearchArgs): Promise<GrepSearchResult> {
     try {
       // Use grep -rnIE (recursive, line numbers, ignore binary, extended regex)
       const quotedPattern = this.quote(pattern);
       const includeFlag = include ? `--include=${this.quote(include)}` : '';
-      
+
       // Limit results to prevent overwhelming the context window or exceeding buffer
       const limit = Math.max(1, Math.min(maxResults, 10000));
       const command = `grep -rnIE ${quotedPattern} . ${includeFlag} --exclude-dir={node_modules,dist,.git} | head -n ${limit}`;
-      
+
       const { stdout, stderr } = await execAsync(command, { timeout: 30000 });
       return { results: this.truncate(stdout), stderr: this.truncate(stderr) };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // grep returns exit code 1 if no matches found
-      if (error.code === 1) return { results: '', message: 'No matches found.' };
-      return { results: '', error: error.message };
+      if (error && typeof error === 'object' && 'code' in error && (error as any).code === 1) {
+        return { results: '', message: 'No matches found.' };
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      return { results: '', error: message };
     }
   }
 }
