@@ -15,7 +15,7 @@ describe('PromptInput', () => {
     expect(lastFrame()).toContain('test prompt');
     
     // Press enter
-    stdin.write('\\r');
+    stdin.write('\r');
     
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(onSubmit).toHaveBeenCalledWith('test prompt');

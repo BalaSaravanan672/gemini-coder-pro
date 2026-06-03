@@ -1,5 +1,5 @@
-import { SessionManager } from './src/core/session.js';
-import { Orchestrator } from './src/core/orchestrator.js';
+import { SessionManager } from '@gemini-coder/core';
+import { Orchestrator } from '@gemini-coder/core';
 
 async function test() {
   const sm = new SessionManager();
