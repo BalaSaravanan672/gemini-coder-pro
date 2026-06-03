@@ -36,7 +36,10 @@ export class ToolManager {
       } else if (call?.name === 'read_files' && Array.isArray(result)) {
         summaries.push(`Read ${result.length} file${result.length === 1 ? '' : 's'}.`);
       } else if (call?.name === 'grep_search') {
-        summaries.push('Search completed.');
+        const matches = typeof result?.results === 'string' 
+          ? result.results.trim().split('\n').filter(Boolean).length 
+          : 0;
+        summaries.push(`Found ${matches} match${matches === 1 ? '' : 'es'}.`);
       } else if (call?.name === 'run_command') {
         summaries.push('Command executed.');
       } else if (call?.name) {
