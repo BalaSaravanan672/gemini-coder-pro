@@ -15,7 +15,13 @@ import path from 'path';
 import { marked } from 'marked';
 import { markedTerminal } from 'marked-terminal';
 import inquirer from 'inquirer';
-import { getPromptText, printAssistantResponse, printHelp, printModeChange, printBox } from '../ui/terminal.js';
+import {
+  getPromptText,
+  printAssistantResponse,
+  printHelp,
+  printModeChange,
+  printBox,
+} from '../ui/terminal.js';
 import { formatTransportError, isTransportError } from './transport/errors.js';
 import { ToolManager } from './services/tools.js';
 import { ContextService } from './services/context.js';
@@ -26,7 +32,7 @@ marked.use(markedTerminal() as any);
 
 export enum OrchestratorMode {
   NORMAL = 'NORMAL',
-  PLAN = 'PLAN'
+  PLAN = 'PLAN',
 }
 
 const MAX_TURNS = 50;
@@ -54,8 +60,14 @@ export class Orchestrator {
   private forceTextResponseMode: boolean = false;
   private consecutiveToolTurns: number = 0;
   private lastTurnExecutedTools: boolean = false;
-  public appliedEdits: { path: string, originalContent: string }[] = [];
-  constructor(session: Session, sessionManager: SessionManager, model: string = 'gemini-3.5-flash', workspaceRoot: string = process.cwd(), autonomous: boolean = false) {
+  public appliedEdits: { path: string; originalContent: string }[] = [];
+  constructor(
+    session: Session,
+    sessionManager: SessionManager,
+    model: string = 'gemini-3.5-flash',
+    workspaceRoot: string = process.cwd(),
+    autonomous: boolean = false
+  ) {
     this.session = session;
     this.sessionManager = sessionManager;
     this.model = model;
@@ -74,32 +86,45 @@ export class Orchestrator {
   public async initialize() {
     // Register all slash commands
     registerAllCommands();
-    
+
+    // Load extensions (tools)
+    await ToolManager.loadExtensions(this.workspaceRoot);
+
     // Ensure the session follows the current workspaceRoot and use a workspace-specific prompt.
-    const systemPrompt = PromptService.appendConcisePolicy(await this.loadSystemPrompt());
+    let basePrompt = await this.loadSystemPrompt();
+    const geminiInstructions = await ContextService.loadGeminiInstructions(this.workspaceRoot);
+    if (geminiInstructions) {
+      basePrompt += `\n\n## Project Instructions (from GEMINI.md)\n${geminiInstructions}`;
+    }
+    const systemPrompt = PromptService.appendConcisePolicy(basePrompt);
     await this.syncSessionWorkspaceRoot();
 
     if (this.session.history.length === 0) {
       this.session.history.push({ role: 'user', parts: [{ text: systemPrompt }] });
-      this.session.history.push({ role: 'model', parts: [{ text: 'Gemini Coder Pro initialized. What do you want to work on?' }] });
+      this.session.history.push({
+        role: 'model',
+        parts: [{ text: 'Gemini Coder Pro initialized. What do you want to work on?' }],
+      });
     } else {
       // Replace the first history entry with the workspace-specific system prompt to avoid stale repo prompts
       try {
         this.session.history[0] = { role: 'user', parts: [{ text: systemPrompt }] };
-      } catch (_) {
+      } catch {
         // ignore
       }
     }
     // Ensure the process working directory matches the orchestrator workspaceRoot
     try {
       process.chdir(this.workspaceRoot);
-    } catch (err) {
+    } catch {
       // ignore: if chdir fails, tools will still resolve against workspaceRoot explicitly
     }
     // Persist session after initialization changes
     try {
       await this.sessionManager.saveSession(this.session);
-    } catch (_) {}
+    } catch {
+      // ignore
+    }
   }
 
   public async setWorkspaceRoot(workspaceRoot: string) {
@@ -108,20 +133,22 @@ export class Orchestrator {
 
     try {
       process.chdir(this.workspaceRoot);
-    } catch (err) {
+    } catch {
       // ignore: if chdir fails, tools will still resolve against workspaceRoot explicitly
     }
 
     try {
       await this.sessionManager.saveSession(this.session);
-    } catch (_) {}
+    } catch {
+      // ignore
+    }
   }
 
   private async loadSystemPrompt(): Promise<string> {
     try {
       const promptPath = path.join(this.workspaceRoot, '.gemini-coder', 'system-prompt.md');
       return await fs.readFile(promptPath, 'utf8');
-    } catch (error) {
+    } catch {
       return `You are Gemini Coder Pro, an autonomous engineering agent.`;
     }
   }
@@ -141,7 +168,7 @@ export class Orchestrator {
 
   async chat() {
     const isInteractive = process.stdout.isTTY;
-    
+
     while (true) {
       let userInput = '';
       try {
@@ -165,7 +192,7 @@ export class Orchestrator {
 
       if (userInput.trim() === '') continue;
       if (userInput.toLowerCase() === 'exit') break;
-      
+
       if (userInput.startsWith('/')) {
         await this.handleSlashCommand(userInput);
         continue;
@@ -173,16 +200,17 @@ export class Orchestrator {
 
       // Quick local handlers for common project queries to avoid model round-trips
       // Accept common misspellings: "expain", "explian"
-      const explainProjectMatch = /^\s*(?:explain|expain|explian)(?:\s+(?:the|this))?\s+project\b|^\s*(?:list(?:\s+files|\s+project(?: files)?)?)\b/i;
+      const explainProjectMatch =
+        /^\s*(?:explain|expain|explian)(?:\s+(?:the|this))?\s+project\b|^\s*(?:list(?:\s+files|\s+project(?: files)?)?)\b/i;
       if (explainProjectMatch.test(userInput)) {
         try {
           const entries = await fs.readdir(this.workspaceRoot, { withFileTypes: true });
-          const names = entries.map(e => (e.isDirectory() ? `${e.name}/` : e.name)).slice(0, 200);
+          const names = entries.map((e) => (e.isDirectory() ? `${e.name}/` : e.name)).slice(0, 200);
           const readmePath = path.join(this.workspaceRoot, 'README.md');
           let readme = '';
           try {
             readme = await fs.readFile(readmePath, 'utf8');
-          } catch (_) {
+          } catch {
             // ignore missing README
           }
 
@@ -193,13 +221,17 @@ export class Orchestrator {
             const excerpt = readme.length > max ? `${readme.slice(0, max)}...` : readme;
             summaryLines.push(`README excerpt:\n${excerpt}`);
             if (readme.length > max) {
-              summaryLines.push(`(README truncated — ask "show README" or run the CLI from the project to view the full file.)`);
+              summaryLines.push(
+                `(README truncated — ask "show README" or run the CLI from the project to view the full file.)`
+              );
             }
           }
 
           printAssistantResponse(summaryLines.join('\n\n'));
-        } catch (err: any) {
-          printAssistantResponse(`Unable to read project directory: ${err?.message ?? String(err)}`);
+        } catch (_err: any) {
+          printAssistantResponse(
+            `Unable to read project directory: ${_err?.message ?? String(_err)}`
+          );
         }
         continue;
       }
@@ -208,7 +240,9 @@ export class Orchestrator {
       const navMatch = userInput.match(/^\s*(?:navigate to|cd|chdir)\s+(.+)$/i);
       if (navMatch) {
         const target = navMatch[1].trim();
-        const resolved = path.isAbsolute(target) ? target : path.resolve(this.workspaceRoot, target);
+        const resolved = path.isAbsolute(target)
+          ? target
+          : path.resolve(this.workspaceRoot, target);
         try {
           const stat = await fs.stat(resolved);
           if (!stat.isDirectory()) {
@@ -217,14 +251,16 @@ export class Orchestrator {
             await this.setWorkspaceRoot(resolved);
             printAssistantResponse(`Changed workspace to ${resolved}`);
           }
-        } catch (err: any) {
-          printAssistantResponse(`Cannot navigate to ${target}: ${err?.message ?? String(err)}`);
+        } catch (_err: any) {
+          printAssistantResponse(`Cannot navigate to ${target}: ${_err?.message ?? String(_err)}`);
         }
         continue;
       }
 
       // Local project/directory queries handled locally to avoid model inconsistencies
-      const simpleQuery = userInput.match(/^\s*(?:which project are you in\??|which directory are you in\??|where are you\??)\s*$/i);
+      const simpleQuery = userInput.match(
+        /^\s*(?:which project are you in\??|which directory are you in\??|where are you\??)\s*$/i
+      );
       if (simpleQuery) {
         printAssistantResponse(`I am in ${this.workspaceRoot}`);
         continue;
@@ -234,18 +270,26 @@ export class Orchestrator {
       const areYouIn = userInput.match(/^\s*are you in\s+(.+?)\s*\??$/i);
       if (areYouIn) {
         const target = areYouIn[1].trim();
-        const resolved = path.isAbsolute(target) ? target : path.resolve(this.workspaceRoot, target);
+        const resolved = path.isAbsolute(target)
+          ? target
+          : path.resolve(this.workspaceRoot, target);
         const isSame = path.resolve(this.workspaceRoot) === path.resolve(resolved);
-        printAssistantResponse(isSame ? `Yes — I am in ${this.workspaceRoot}` : `No — I am in ${this.workspaceRoot}`);
+        printAssistantResponse(
+          isSame ? `Yes — I am in ${this.workspaceRoot}` : `No — I am in ${this.workspaceRoot}`
+        );
         continue;
       }
 
       this.session.history.push({ role: 'user', parts: [{ text: userInput }] });
       await this.processTurn(0);
-      
+
       // Save session after every exchange
       this.session.updatedAt = new Date().toISOString();
-      await this.sessionManager.saveSession(this.session);
+      try {
+        await this.sessionManager.saveSession(this.session);
+      } catch {
+        // ignore
+      }
     }
 
     this.rl.close();
@@ -253,7 +297,7 @@ export class Orchestrator {
 
   public async handleSlashCommand(command: string) {
     const [cmd, ...args] = command.slice(1).split(' ');
-    
+
     // Check registry first
     const handler = CommandRegistry.get(cmd);
     if (handler) {
@@ -273,19 +317,21 @@ export class Orchestrator {
         break;
       case 'actions': {
         printBox('Actions', ['Choose an interactive command.'], 'blue');
-        const answer = await inquirer.prompt([{
-          type: 'expand',
-          name: 'command',
-          message: 'Action',
-          choices: [
-            { key: 'p', name: 'Plan', value: '/plan' },
-            { key: 'd', name: 'Diff', value: '/diff' },
-            { key: 'r', name: 'Review', value: '/review' },
-            { key: 's', name: 'Simplify', value: '/simplify' },
-            { key: 't', name: 'Test', value: '/test' },
-            { key: 'c', name: 'Cancel', value: null },
-          ],
-        }]);
+        const answer = await inquirer.prompt([
+          {
+            type: 'expand',
+            name: 'command',
+            message: 'Action',
+            choices: [
+              { key: 'p', name: 'Plan', value: '/plan' },
+              { key: 'd', name: 'Diff', value: '/diff' },
+              { key: 'r', name: 'Review', value: '/review' },
+              { key: 's', name: 'Simplify', value: '/simplify' },
+              { key: 't', name: 'Test', value: '/test' },
+              { key: 'c', name: 'Cancel', value: null },
+            ],
+          },
+        ]);
         if (answer.command) {
           await this.handleSlashCommand(answer.command);
         }
@@ -303,11 +349,11 @@ export class Orchestrator {
     }
 
     try {
-      const contents: Content[] = this.session.history.map(item => ({
+      const contents: Content[] = this.session.history.map((item) => ({
         role: item.role,
-        parts: item.parts
+        parts: item.parts,
       }));
-      
+
       let latestUserText = '';
       for (let i = contents.length - 1; i >= 0; i--) {
         if (contents[i].role === 'user') {
@@ -319,15 +365,26 @@ export class Orchestrator {
         }
       }
 
-      const fileContext = latestUserText ? await ContextService.loadReferencedFileContext(this.workspaceRoot, latestUserText) : '';
-      const autoDiscoveryContext = latestUserText ? await ContextService.buildAutoDiscoveryContext(this.workspaceRoot, latestUserText) : '';
+      const fileContext = latestUserText
+        ? await ContextService.loadReferencedFileContext(this.workspaceRoot, latestUserText)
+        : '';
+      const autoDiscoveryContext = latestUserText
+        ? await ContextService.buildAutoDiscoveryContext(this.workspaceRoot, latestUserText)
+        : '';
+      const atOperatorContext = latestUserText
+        ? await ContextService.loadAtOperatorContext(this.workspaceRoot, latestUserText)
+        : '';
 
-      const shouldInjectRepoContext = latestUserText && ContextService.shouldInjectContextMap(latestUserText) && !fileContext;
+      const shouldInjectRepoContext =
+        latestUserText && ContextService.shouldInjectContextMap(latestUserText) && !fileContext;
 
-      if (latestUserText && (shouldInjectRepoContext || fileContext || autoDiscoveryContext)) {
+      if (
+        latestUserText &&
+        (shouldInjectRepoContext || fileContext || autoDiscoveryContext || atOperatorContext)
+      ) {
         let contextMap = '';
         if (shouldInjectRepoContext) {
-            contextMap = await getContextMap(this.workspaceRoot);
+          contextMap = await getContextMap(this.workspaceRoot);
         }
 
         for (let i = contents.length - 1; i >= 0; i--) {
@@ -336,9 +393,10 @@ export class Orchestrator {
             if (parts && parts.length > 0 && 'text' in parts[0]) {
               const contextSections = [
                 shouldInjectRepoContext ? `CONTEXT_MAP:\n${contextMap}` : '',
+                atOperatorContext,
                 fileContext,
                 autoDiscoveryContext,
-              ].filter(section => section.trim().length > 0);
+              ].filter((section) => section.trim().length > 0);
 
               parts[0].text = `${contextSections.join('\n\n')}\n\nUSER_REQUEST: ${parts[0].text}`;
             }
@@ -348,9 +406,11 @@ export class Orchestrator {
       }
 
       const useTools = ContextService.shouldInjectContextMap(latestUserText);
-      const maxOutputTokens = maxOutputTokensOverride ?? (this.forceTextResponseMode ? 512 : PromptService.getMaxOutputTokens(latestUserText));
+      const maxOutputTokens =
+        maxOutputTokensOverride ??
+        (this.forceTextResponseMode ? 512 : PromptService.getMaxOutputTokens(latestUserText));
       const temperature = PromptService.getTemperature(latestUserText);
-      
+
       const spinner = ora(chalk.cyan('Thinking...')).start();
       let responseStream;
       try {
@@ -358,14 +418,18 @@ export class Orchestrator {
           model: this.model,
           contents,
           config: {
-            ...(useTools ? { tools: [{ functionDeclarations: ToolManager.getDeclarations() }] } : {}),
+            ...(useTools
+              ? { tools: [{ functionDeclarations: ToolManager.getDeclarations() }] }
+              : {}),
             maxOutputTokens,
             temperature,
-          }
+          },
         });
       } catch (err: any) {
         spinner.fail(chalk.red('API Error'));
-        const message = isTransportError(err) ? formatTransportError(err) : String(err?.message || err);
+        const message = isTransportError(err)
+          ? formatTransportError(err)
+          : String(err?.message || err);
         const isOauthDnsIssue =
           String(err?.message || err).includes('oauth2.googleapis.com') ||
           String(err?.message || err).includes('ENOTFOUND') ||
@@ -415,7 +479,8 @@ export class Orchestrator {
           for (const part of parts) {
             if ('functionCall' in part && part.functionCall) {
               const call = part.functionCall;
-              const key = (call as any).id ?? `${call.name ?? 'unknown'}:${JSON.stringify(call.args ?? {})}`;
+              const key =
+                (call as any).id ?? `${call.name ?? 'unknown'}:${JSON.stringify(call.args ?? {})}`;
               functionCallsByKey.set(key, call);
             }
           }
@@ -427,16 +492,18 @@ export class Orchestrator {
 
         if (chunk.functionCalls) {
           for (const call of chunk.functionCalls) {
-            const key = (call as any).id ?? `${call.name ?? 'unknown'}:${JSON.stringify(call.args ?? (call as any).partialArgs ?? {})}`;
+            const key =
+              (call as any).id ??
+              `${call.name ?? 'unknown'}:${JSON.stringify(call.args ?? (call as any).partialArgs ?? {})}`;
             functionCallsByKey.set(key, call);
           }
         }
-        
+
         if (chunk.usageMetadata) {
           finalUsageMetadata = chunk.usageMetadata;
         }
       }
-      
+
       if (!isFirstChunk && assistantText.trim()) {
         const formattedText = marked.parse(assistantText) as string;
         printAssistantResponse(formattedText.trim());
@@ -449,49 +516,74 @@ export class Orchestrator {
         // contains a recent tool-response entry), suppress this generic message
         // because a forced continuation or tool-summary flow may be in progress.
         const lastHist = (this.session.history as any[]).slice(-1)[0];
-        const recentToolHistory = !!(lastHist && lastHist.role === 'user' && Array.isArray(lastHist.parts) && lastHist.parts.some((p: any) => p && typeof p === 'object' && 'functionResponse' in p));
+        const recentToolHistory = !!(
+          lastHist &&
+          lastHist.role === 'user' &&
+          Array.isArray(lastHist.parts) &&
+          lastHist.parts.some((p: any) => p && typeof p === 'object' && 'functionResponse' in p)
+        );
 
         if (this.lastTurnExecutedTools || recentToolHistory) {
           // Suppress noisy message; allow higher-level logic to continue or retry.
           return;
         }
 
-        printAssistantResponse('I did not receive a complete response from the model. Please try again.');
+        printAssistantResponse(
+          'I did not receive a complete response from the model. Please try again.'
+        );
         return;
       }
-      
+
       // Update token tracking
       if (finalUsageMetadata) {
         if (!this.session.tokens) {
           this.session.tokens = { prompt: 0, candidates: 0, total: 0 };
         }
-        this.session.tokens.prompt += (finalUsageMetadata.promptTokenCount || 0);
-        this.session.tokens.candidates += (finalUsageMetadata.candidatesTokenCount || 0);
-        this.session.tokens.total += (finalUsageMetadata.totalTokenCount || 0);
+        this.session.tokens.prompt += finalUsageMetadata.promptTokenCount || 0;
+        this.session.tokens.candidates += finalUsageMetadata.candidatesTokenCount || 0;
+        this.session.tokens.total += finalUsageMetadata.totalTokenCount || 0;
       }
 
       const functionCalls = Array.from(functionCallsByKey.values());
 
-      if (assistantText.trim() && functionCalls.length === 0 && latestUserText && ContextService.isCodeTask(latestUserText) && ContextService.looksLikeContextRequest(assistantText)) {
+      if (
+        assistantText.trim() &&
+        functionCalls.length === 0 &&
+        latestUserText &&
+        ContextService.isCodeTask(latestUserText) &&
+        ContextService.looksLikeContextRequest(assistantText)
+      ) {
         this.session.history.push({
           role: 'user',
-          parts: [{
-            text: `Use tools now. Inspect the workspace and continue without asking for more context. The user task is: ${latestUserText}`,
-          }],
+          parts: [
+            {
+              text: `Use tools now. Inspect the workspace and continue without asking for more context. The user task is: ${latestUserText}`,
+            },
+          ],
         });
         console.log(chalk.cyan('● Inspecting workspace automatically...'));
         await this.processTurn(turnCount + 1, maxOutputTokens);
         return;
       }
 
-      if (finalFinishReason === 'MAX_TOKENS' && assistantText.trim() && functionCalls.length === 0) {
+      if (
+        finalFinishReason === 'MAX_TOKENS' &&
+        assistantText.trim() &&
+        functionCalls.length === 0
+      ) {
         if (turnCount + 1 < MAX_TURNS) {
           const retryTokens = PromptService.getRetryOutputTokens(maxOutputTokens);
           this.session.history.push({
             role: 'user',
-            parts: [{ text: PromptService.buildConciseContinuationPrompt(latestUserText, 'truncated') }],
+            parts: [
+              { text: PromptService.buildConciseContinuationPrompt(latestUserText, 'truncated') },
+            ],
           });
-          console.log(chalk.yellow(`↻ Output truncated; continuing with a larger budget (${retryTokens} tokens)...`));
+          console.log(
+            chalk.yellow(
+              `↻ Output truncated; continuing with a larger budget (${retryTokens} tokens)...`
+            )
+          );
           await this.processTurn(turnCount + 1, retryTokens);
           return;
         }
@@ -504,15 +596,21 @@ export class Orchestrator {
         if (finalFinishReason === 'MAX_TOKENS') {
           if (turnCount + 1 < MAX_TURNS) {
             const retryTokens = PromptService.getRetryOutputTokens(maxOutputTokens);
-            console.log(chalk.yellow(`↻ Retrying with a larger output budget (${retryTokens} tokens)...`));
+            console.log(
+              chalk.yellow(`↻ Retrying with a larger output budget (${retryTokens} tokens)...`)
+            );
             await this.processTurn(turnCount + 1, retryTokens);
             return;
           }
-          printAssistantResponse('Model exhausted the output budget before producing visible text.');
+          printAssistantResponse(
+            'Model exhausted the output budget before producing visible text.'
+          );
         } else if (responseParts.length > 0 && turnCount + 1 < MAX_TURNS) {
           this.session.history.push({
             role: 'user',
-            parts: [{ text: PromptService.buildConciseContinuationPrompt(latestUserText, 'blank') }],
+            parts: [
+              { text: PromptService.buildConciseContinuationPrompt(latestUserText, 'blank') },
+            ],
           });
           await this.processTurn(turnCount + 1);
           return;
@@ -520,12 +618,18 @@ export class Orchestrator {
           // Only print error if we haven't just executed tools (which will trigger forced continuation)
           // Also inspect the recent session history for tool-response entries as a secondary signal.
           const lastHist = (this.session.history as any[]).slice(-1)[0];
-          const recentToolHistory = !!(lastHist && lastHist.role === 'user' && Array.isArray(lastHist.parts) && lastHist.parts.some((p: any) => p && typeof p === 'object' && 'functionResponse' in p));
+          const recentToolHistory = !!(
+            lastHist &&
+            lastHist.role === 'user' &&
+            Array.isArray(lastHist.parts) &&
+            lastHist.parts.some((p: any) => p && typeof p === 'object' && 'functionResponse' in p)
+          );
 
           if (!(this.lastTurnExecutedTools || recentToolHistory)) {
-            const retryHint = responseParts.length > 0
-              ? 'The model returned tool activity but no visible answer. I can retry once or summarize the retrieved context.'
-              : 'I completed the turn but no visible response was returned. Please retry your request.';
+            const retryHint =
+              responseParts.length > 0
+                ? 'The model returned tool activity but no visible answer. I can retry once or summarize the retrieved context.'
+                : 'I completed the turn but no visible response was returned. Please retry your request.';
             printAssistantResponse(retryHint);
           }
         }
@@ -536,10 +640,10 @@ export class Orchestrator {
       if (functionCalls.length > 0) {
         const toolResponses: Part[] = new Array(functionCalls.length);
         this.consecutiveToolTurns++;
-        
+
         const executeCall = async (call: any, index: number) => {
           const { name, args } = call;
-          
+
           let displayArgs = '';
           if (name === 'read_files' && args?.paths) {
             displayArgs = Array.isArray(args.paths) ? args.paths.join(', ') : args.paths;
@@ -560,37 +664,54 @@ export class Orchestrator {
           try {
             // SKIP all tools if we're in forced-text mode (model must generate text, not more tools)
             if (this.forceTextResponseMode) {
-              functionResponse = { error: `Tools are disabled in text-generation mode. Provide text response instead.` };
+              functionResponse = {
+                error: `Tools are disabled in text-generation mode. Provide text response instead.`,
+              };
             }
             // Centralized Plan Mode interception
-            else if (this.mode === OrchestratorMode.PLAN && ['run_command', 'propose_edits'].includes(name)) {
+            else if (
+              this.mode === OrchestratorMode.PLAN &&
+              ['run_command', 'propose_edits'].includes(name)
+            ) {
               functionResponse = { error: `Plan Mode: ${name} is intercepted and not applied.` };
-            } 
+            }
             // Specialized interactive tool
             else if (name === 'propose_edits') {
               const { edits } = args as { edits: any[] };
               const results = [];
               for (const edit of edits || []) {
-                const { success, originalContent } = await showDiff(this, edit.path, edit.search, edit.replace, edit.action, edit.reason, this.autonomous);
+                const { success, originalContent } = await showDiff(
+                  this,
+                  edit.path,
+                  edit.search,
+                  edit.replace,
+                  edit.action,
+                  edit.reason,
+                  this.autonomous
+                );
                 if (success && originalContent) {
                   this.appliedEdits.push({ path: edit.path, originalContent });
                 }
                 results.push({ path: edit.path, applied: success });
               }
               functionResponse = { results };
-            } 
+            }
             // Dynamic routing for all other registered tools
             else if (name in tools) {
               functionResponse = await (tools as any)[name](args || {});
-            } 
-            else {
-              functionResponse = { error: `Unknown tool: ${name}. Available tools are: ${Object.keys(tools).join(', ')}` };
+            } else {
+              functionResponse = {
+                error: `Unknown tool: ${name}. Available tools are: ${Object.keys(tools).join(', ')}`,
+              };
             }
-            
+
             // Clear progress line and show status (suppress message if tool was skipped due to text-mode)
             process.stdout.clearLine(0);
             process.stdout.cursorTo(0);
-            if (!this.forceTextResponseMode || functionResponse?.error?.includes?.('Tools are disabled')) {
+            if (
+              !this.forceTextResponseMode ||
+              functionResponse?.error?.includes?.('Tools are disabled')
+            ) {
               // Tool was executed normally or explicitly skipped; no status needed
               if (this.forceTextResponseMode) {
                 console.log(chalk.gray(`⊘ ${name} ${displayArgs} (skipped)`));
@@ -610,8 +731,8 @@ export class Orchestrator {
           toolResponses[index] = {
             functionResponse: {
               name: name,
-              response: { result: functionResponse }
-            }
+              response: { result: functionResponse },
+            },
           };
         };
 
@@ -633,10 +754,10 @@ export class Orchestrator {
 
         // Mark that tools were executed this turn
         this.lastTurnExecutedTools = true;
-        
+
         this.session.history.push({
           role: 'user',
-          parts: toolResponses
+          parts: toolResponses,
         });
 
         if (!assistantText.trim()) {
@@ -648,24 +769,32 @@ export class Orchestrator {
         // force a summary. Otherwise, allow it to continue tool execution.
         const MAX_TOOL_CHAIN = 3;
         if (!assistantText.trim() && this.consecutiveToolTurns >= MAX_TOOL_CHAIN) {
-            console.log(chalk.gray(`[DEBUG] Max tool chain reached (\${MAX_TOOL_CHAIN}). Forcing text-only response mode.`));
-            this.forceTextResponseMode = true;
-            this.session.history.push({
-              role: 'user',
-              parts: [{ text: PromptService.buildConciseContinuationPrompt(latestUserText, 'tool-followup') }]
-            });
-            await this.processTurn(turnCount + 1);
-            this.forceTextResponseMode = false;
-            this.consecutiveToolTurns = 0; // Reset after forced summary
+          console.log(
+            chalk.gray(
+              `[DEBUG] Max tool chain reached (\${MAX_TOOL_CHAIN}). Forcing text-only response mode.`
+            )
+          );
+          this.forceTextResponseMode = true;
+          this.session.history.push({
+            role: 'user',
+            parts: [
+              {
+                text: PromptService.buildConciseContinuationPrompt(latestUserText, 'tool-followup'),
+              },
+            ],
+          });
+          await this.processTurn(turnCount + 1);
+          this.forceTextResponseMode = false;
+          this.consecutiveToolTurns = 0; // Reset after forced summary
         } else {
-            // Allow the model to continue naturally (either tools or text)
-            await this.processTurn(turnCount + 1);
+          // Allow the model to continue naturally (either tools or text)
+          await this.processTurn(turnCount + 1);
         }
       } else {
-          // If the model produces text or stops tool execution, reset the counter
-          this.consecutiveToolTurns = 0;
+        // If the model produces text or stops tool execution, reset the counter
+        this.consecutiveToolTurns = 0;
       }
-      
+
       // Reset tool execution flag at end of turn for next top-level call
       this.lastTurnExecutedTools = false;
     } catch (error: any) {

@@ -2,7 +2,7 @@ import { DiffHandler } from '../commands/diff.js';
 
 async function test() {
   const handler = new DiffHandler();
-  // @ts-ignore
+  // @ts-expect-error - testing invalid arguments
   await handler.execute({});
 }
 

@@ -32,8 +32,10 @@ export class SessionManager {
   private async ensureDirectory() {
     try {
       await fs.mkdir(SESSIONS_DIR, { recursive: true });
-    } catch (e: any) {
-      console.warn(`\n[System Warning]: Failed to ensure sessions directory at ${SESSIONS_DIR}. Error: ${e.message}`);
+    } catch (_e: any) {
+      console.warn(
+        `\n[System Warning]: Failed to ensure sessions directory at ${SESSIONS_DIR}. Error: ${_e.message}`
+      );
     }
   }
 
@@ -68,7 +70,7 @@ export class SessionManager {
       const session = JSON.parse(data);
       this.currentSessionId = id;
       return session;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -81,18 +83,25 @@ export class SessionManager {
       if (files.length === 0) return null;
 
       const sessions = await Promise.all(
-        files.filter(f => f.endsWith('.json')).map(async f => {
-          const data = await fs.readFile(path.join(SESSIONS_DIR, f), 'utf8');
-          return JSON.parse(data) as Session;
-        })
+        files
+          .filter((f) => f.endsWith('.json'))
+          .map(async (f) => {
+            const data = await fs.readFile(path.join(SESSIONS_DIR, f), 'utf8');
+            return JSON.parse(data) as Session;
+          })
       );
 
-      return sessions
-        .filter(session => session.workspaceRoot && normalizeWorkspaceRoot(session.workspaceRoot) === normalizedWorkspaceRoot)
-        .sort((a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )[0] ?? null;
-    } catch (e) {
+      return (
+        sessions
+          .filter(
+            (session) =>
+              session.workspaceRoot &&
+              normalizeWorkspaceRoot(session.workspaceRoot) === normalizedWorkspaceRoot
+          )
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0] ??
+        null
+      );
+    } catch {
       return null;
     }
   }
@@ -103,16 +112,18 @@ export class SessionManager {
       if (files.length === 0) return null;
 
       const sessions = await Promise.all(
-        files.filter(f => f.endsWith('.json')).map(async f => {
-          const data = await fs.readFile(path.join(SESSIONS_DIR, f), 'utf8');
-          return JSON.parse(data) as Session;
-        })
+        files
+          .filter((f) => f.endsWith('.json'))
+          .map(async (f) => {
+            const data = await fs.readFile(path.join(SESSIONS_DIR, f), 'utf8');
+            return JSON.parse(data) as Session;
+          })
       );
 
-      return sessions.sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      return sessions.sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       )[0];
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -121,15 +132,17 @@ export class SessionManager {
     try {
       const files = await fs.readdir(SESSIONS_DIR);
       const sessions = await Promise.all(
-        files.filter(f => f.endsWith('.json')).map(async f => {
-          const data = await fs.readFile(path.join(SESSIONS_DIR, f), 'utf8');
-          return JSON.parse(data) as Session;
-        })
+        files
+          .filter((f) => f.endsWith('.json'))
+          .map(async (f) => {
+            const data = await fs.readFile(path.join(SESSIONS_DIR, f), 'utf8');
+            return JSON.parse(data) as Session;
+          })
       );
-      return sessions.sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      return sessions.sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       );
-    } catch (e) {
+    } catch {
       return [];
     }
   }
