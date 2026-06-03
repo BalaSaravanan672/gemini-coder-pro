@@ -1,53 +1,28 @@
 {
-  "name": "gemini-coder",
+  "name": "gemini-coder-monorepo",
   "version": "0.1.5",
+  "private": true,
   "type": "module",
-  "main": "dist/cli.js",
-  "bin": {
-    "gemini-coder": "dist/cli.js"
-  },
-  "files": [
-    "dist",
-    "README.md"
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsx src/cli.ts chat",
-    "dev:server": "tsx src/server.ts",
-    "start": "node dist/cli.js chat",
-    "serve": "node dist/server.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint .",
-    "format": "prettier --write .",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@google/genai": "^2.6.0",
-    "chalk": "^5.3.0",
-    "cli-highlight": "^2.1.11",
-    "cli-table3": "^0.6.5",
-    "commander": "^12.0.0",
-    "diff": "^5.2.0",
-    "glob": "^10.3.12",
-    "google-auth-library": "^10.6.2",
-    "highlight.js": "^11.11.1",
-    "inquirer": "^13.4.3",
-    "marked": "^15.0.12",
-    "marked-terminal": "^7.3.0",
-    "ora": "^9.4.0"
+    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run dev --workspace=@gemini-coder/cli",
+    "dev:server": "npm run dev:server --workspace=@gemini-coder/cli",
+    "start": "npm run start --workspace=@gemini-coder/cli",
+    "serve": "npm run serve --workspace=@gemini-coder/cli",
+    "test": "vitest run",
+    "lint": "eslint packages/*/src",
+    "format": "prettier --write packages/*/src"
   },
   "devDependencies": {
-    "@types/diff": "^7.0.2",
-    "@types/inquirer": "^9.0.9",
-    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^20.12.7",
     "@typescript-eslint/eslint-plugin": "^8.60.1",
     "@typescript-eslint/parser": "^8.60.1",
     "eslint": "^10.4.1",
     "eslint-config-prettier": "^10.1.8",
-    "esm": "^3.2.25",
     "prettier": "^3.8.3",
-    "tsx": "^4.7.2",
     "typescript": "^5.4.5",
     "vitest": "^4.1.8"
   }
