@@ -1,4 +1,4 @@
-import { CommandRegistry } from '../core/commands.js';
+import { CommandRegistry } from '@gemini-coder/core';
 import { PlanHandler } from './plan.js';
 import { DiffHandler } from './diff.js';
 import { ReviewHandler, SecurityReviewHandler } from './review.js';

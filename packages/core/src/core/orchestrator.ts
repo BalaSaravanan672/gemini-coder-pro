@@ -9,7 +9,6 @@ import { Session, SessionManager } from './session.js';
 import { normalizeWorkspaceRoot } from './session.js';
 import * as readline from 'readline/promises';
 import { CommandRegistry } from './commands.js';
-import { registerAllCommands } from '../commands/index.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { marked } from 'marked';
@@ -21,7 +20,7 @@ import {
   printHelp,
   printModeChange,
   printBox,
-} from '../ui/terminal.js';
+} from '@gemini-coder/ui';
 import { formatTransportError, isTransportError } from './transport/errors.js';
 import { ToolManager } from './services/tools.js';
 import { ContextService } from './services/context.js';
@@ -85,9 +84,6 @@ export class Orchestrator {
   }
 
   public async initialize() {
-    // Register all slash commands
-    registerAllCommands();
-
     // Load extensions (tools)
     await ToolManager.loadExtensions(this.workspaceRoot);
 

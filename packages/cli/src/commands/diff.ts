@@ -1,7 +1,7 @@
-import { CommandHandler } from '../core/commands.js';
-import { Orchestrator } from '../core/orchestrator.js';
-import { tools } from '../tools/index.js';
-import { showInteractiveDiff } from '../core/diff.js';
+import { CommandHandler } from '@gemini-coder/core';
+import { Orchestrator } from '@gemini-coder/core';
+import { tools } from '@gemini-coder/core';
+import { showInteractiveDiff } from '@gemini-coder/core';
 import chalk from 'chalk';
 
 export class DiffHandler implements CommandHandler {

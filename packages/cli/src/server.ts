@@ -1,7 +1,7 @@
 import { createServer } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { URL } from 'url';
-import { createGoogleClient } from './core/auth.js';
+import { createGoogleClient } from '@gemini-coder/core';
 
 const serverPort = Number(process.env.GEMINI_CODER_SERVER_PORT ?? 8787);
 const serverHost = process.env.GEMINI_CODER_SERVER_HOST ?? '0.0.0.0';

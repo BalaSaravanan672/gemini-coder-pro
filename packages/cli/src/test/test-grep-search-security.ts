@@ -1,4 +1,4 @@
-import { GrepSearchTool } from '../tools/grep-search.js';
+import { GrepSearchTool } from '@gemini-coder/core';
 import * as fs from 'fs';
 import * as path from 'path';
 

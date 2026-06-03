@@ -1,5 +1,6 @@
 import chalk from 'chalk';
-import { OrchestratorMode } from '../core/orchestrator.js';
+
+export type TerminalMode = 'NORMAL' | 'PLAN';
 
 export const QUICK_ACTIONS = [
   { label: 'Plan', command: '/plan' },
@@ -89,8 +90,8 @@ export function printBootScreen(appName: string, version: string) {
   );
 }
 
-export function getPromptText(mode: OrchestratorMode) {
-  const promptColor = mode === OrchestratorMode.PLAN ? chalk.magenta : chalk.green;
+export function getPromptText(mode: TerminalMode) {
+  const promptColor = mode === 'PLAN' ? chalk.magenta : chalk.green;
   return chalk.bold(`${promptColor('>')} `);
 }
 
@@ -102,10 +103,10 @@ export function printAssistantResponse(text: string) {
   console.log(chalk.blue.bold(`└──${'─'.repeat(width - 3)}`));
 }
 
-export function printModeChange(mode: OrchestratorMode) {
+export function printModeChange(mode: TerminalMode) {
   const label =
-    mode === OrchestratorMode.PLAN ? chalk.magenta('Plan mode') : chalk.green('Normal mode');
-  printBox('Mode', [`${label}`], mode === OrchestratorMode.PLAN ? 'magenta' : 'green');
+    mode === 'PLAN' ? chalk.magenta('Plan mode') : chalk.green('Normal mode');
+  printBox('Mode', [`${label}`], mode === 'PLAN' ? 'magenta' : 'green');
 }
 
 export function printHelp(commands: Array<{ name: string; description: string }>) {

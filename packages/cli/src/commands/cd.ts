@@ -1,5 +1,5 @@
-import { CommandHandler } from '../core/commands.js';
-import { Orchestrator } from '../core/orchestrator.js';
+import { CommandHandler } from '@gemini-coder/core';
+import { Orchestrator } from '@gemini-coder/core';
 import fs from 'fs/promises';
 import path from 'path';
 import chalk from 'chalk';

@@ -5,10 +5,10 @@ import Table from 'cli-table3';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { SessionManager } from './core/session.js';
-import { Orchestrator } from './core/orchestrator.js';
-import { printBootScreen } from './ui/terminal.js';
-import { normalizeWorkspaceRoot } from './core/session.js';
+import { SessionManager, normalizeWorkspaceRoot } from '@gemini-coder/core';
+import { Orchestrator } from '@gemini-coder/core';
+import { printBootScreen } from '@gemini-coder/ui';
+import { registerAllCommands } from './commands/index.js';
 
 const program = new Command();
 const sessionManager = new SessionManager();
@@ -41,8 +41,10 @@ program
   .option('-m, --model <name>', 'Specify the model to use', 'gemini-3.5-flash')
   .action(async (queryArg, options) => {
     printBootScreen('Gemini Coder Pro', `v${packageVersion}`);
+    registerAllCommands();
 
     const query = queryArg || options.prompt;
+
     const isOneOff = !!options.prompt;
     const isYolo = !!(options.yolo || options.autonomous);
 

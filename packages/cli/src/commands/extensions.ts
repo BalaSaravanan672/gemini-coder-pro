@@ -1,6 +1,6 @@
-import { CommandHandler } from '../core/commands.js';
-import { Orchestrator } from '../core/orchestrator.js';
-import { toolRegistry } from '../tools/index.js';
+import { CommandHandler } from '@gemini-coder/core';
+import { Orchestrator } from '@gemini-coder/core';
+import { toolRegistry } from '@gemini-coder/core';
 import chalk from 'chalk';
 
 export class ExtensionsHandler implements CommandHandler {

@@ -1,5 +1,5 @@
-import { CommandHandler } from '../core/commands.js';
-import { Orchestrator, OrchestratorMode } from '../core/orchestrator.js';
+import { CommandHandler } from '@gemini-coder/core';
+import { Orchestrator, OrchestratorMode } from '@gemini-coder/core';
 import chalk from 'chalk';
 
 export class PlanHandler implements CommandHandler {
