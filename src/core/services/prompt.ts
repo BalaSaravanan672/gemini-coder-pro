@@ -8,11 +8,19 @@ export class PromptService {
   static getMaxOutputTokens(userText: string): number {
     const normalized = userText.toLowerCase();
 
-    if (/^(hi|hello|hey|hola|thanks|thank you|good morning|good afternoon|good evening)([!.?\s]|$)/i.test(normalized)) {
+    if (
+      /^(hi|hello|hey|hola|thanks|thank you|good morning|good afternoon|good evening)([!.?\s]|$)/i.test(
+        normalized
+      )
+    ) {
       return 256;
     }
 
-    if (/\b(large|big|full|entire|multiple files|all files|whole repo|repository-wide)\b/i.test(normalized)) {
+    if (
+      /\b(large|big|full|entire|multiple files|all files|whole repo|repository-wide)\b/i.test(
+        normalized
+      )
+    ) {
       return 3072;
     }
 
@@ -20,7 +28,11 @@ export class PromptService {
       return 1536;
     }
 
-    if (/\b(refactor|implement|fix|debug|patch|update|modify|edit|code|function|class|build|test|lint|compile)\b/i.test(normalized)) {
+    if (
+      /\b(refactor|implement|fix|debug|patch|update|modify|edit|code|function|class|build|test|lint|compile)\b/i.test(
+        normalized
+      )
+    ) {
       return 1024;
     }
 

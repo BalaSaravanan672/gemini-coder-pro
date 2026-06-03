@@ -13,6 +13,7 @@
 ### Task 1: Implement Manual Auth Bridge in ai.ts
 
 **Files:**
+
 - Modify: `src/core/ai.ts`
 
 - [ ] **Step 1: Update ai.ts to generate access tokens manually**
@@ -48,8 +49,8 @@ export const client = new GoogleGenAI({
   location: 'global',
   vertexai: true,
   headers: {
-    'Authorization': 'Bearer ' + token
-  }
+    Authorization: 'Bearer ' + token,
+  },
 });
 ```
 
@@ -63,6 +64,7 @@ git commit -m "refactor: implement manual auth bridge for Vertex AI"
 ### Task 2: Refactor Orchestrator to use modern SDK features
 
 **Files:**
+
 - Modify: `src/core/orchestrator.ts`
 
 - [ ] **Step 1: Update processTurn to use chunk.functionCalls and increase MAX_TURNS**
@@ -72,16 +74,16 @@ git commit -m "refactor: implement manual auth bridge for Vertex AI"
 const MAX_TURNS = 50;
 
 // ... inside processTurn
-      let functionCalls: any[] = [];
+let functionCalls: any[] = [];
 
-      for await (const chunk of responseStream) {
-        // ...
-        // Use modern SDK convenience method
-        if (chunk.functionCalls) {
-          functionCalls.push(...chunk.functionCalls);
-        }
-        // ...
-      }
+for await (const chunk of responseStream) {
+  // ...
+  // Use modern SDK convenience method
+  if (chunk.functionCalls) {
+    functionCalls.push(...chunk.functionCalls);
+  }
+  // ...
+}
 ```
 
 - [ ] **Step 2: Remove old functionCall filtering logic**

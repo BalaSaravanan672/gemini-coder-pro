@@ -13,6 +13,7 @@
 ### Task 1: Create Reproduction Test
 
 **Files:**
+
 - Create: `src/repro-context.ts`
 
 - [ ] **Step 1: Write a reproduction test that expects signatures**
@@ -23,17 +24,17 @@ import { getContextMap } from './context.js';
 async function test() {
   console.log('Testing getContextMap for signatures...');
   const map = await getContextMap();
-  
+
   // Check for signatures (e.g., "[Signature]")
   if (!map.includes('[Signature]')) {
     console.error('FAIL: No signatures found in context map.');
     process.exit(1);
   }
-  
+
   console.log('PASS: Signatures found.');
 }
 
-test().catch(err => {
+test().catch((err) => {
   console.error(err);
   process.exit(1);
 });
@@ -56,6 +57,7 @@ git commit -m "test: add reproduction test for context map signatures"
 ### Task 2: Implement .gitignore support using git ls-files
 
 **Files:**
+
 - Modify: `src/context.ts`
 
 - [ ] **Step 1: Replace glob with git ls-files**
@@ -69,11 +71,11 @@ const execAsync = promisify(exec);
 
 export async function getContextMap(): Promise<string> {
   const { stdout } = await execAsync('git ls-files --cached --others --exclude-standard');
-  const files = stdout.split('\n').filter(f => f.trim().length > 0);
-  
+  const files = stdout.split('\n').filter((f) => f.trim().length > 0);
+
   const result: string[] = [];
   for (const file of files) {
-      result.push(file);
+    result.push(file);
   }
   return result.join('\n');
 }
@@ -96,6 +98,7 @@ git commit -m "feat: use git ls-files to respect .gitignore"
 ### Task 3: Implement file signatures
 
 **Files:**
+
 - Modify: `src/context.ts`
 
 - [ ] **Step 1: Update getContextMap to read first 10 lines of key files**
@@ -108,32 +111,32 @@ import { readFile } from 'fs/promises';
 const execAsync = promisify(exec);
 
 async function getSignature(filePath: string): Promise<string | null> {
-    const keyExtensions = ['.ts', '.js', '.json', '.md'];
-    if (!keyExtensions.some(ext => filePath.endsWith(ext))) {
-        return null;
-    }
+  const keyExtensions = ['.ts', '.js', '.json', '.md'];
+  if (!keyExtensions.some((ext) => filePath.endsWith(ext))) {
+    return null;
+  }
 
-    try {
-        const content = await readFile(filePath, 'utf-8');
-        const lines = content.split('\n').slice(0, 10);
-        return lines.join('\n');
-    } catch (e) {
-        return null;
-    }
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    const lines = content.split('\n').slice(0, 10);
+    return lines.join('\n');
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function getContextMap(): Promise<string> {
   const { stdout } = await execAsync('git ls-files --cached --others --exclude-standard');
-  const files = stdout.split('\n').filter(f => f.trim().length > 0);
-  
+  const files = stdout.split('\n').filter((f) => f.trim().length > 0);
+
   const result: string[] = [];
   for (const file of files) {
-      const signature = await getSignature(file);
-      if (signature) {
-          result.push(`${file}:\n[Signature]\n${signature}\n---`);
-      } else {
-          result.push(file);
-      }
+    const signature = await getSignature(file);
+    if (signature) {
+      result.push(`${file}:\n[Signature]\n${signature}\n---`);
+    } else {
+      result.push(file);
+    }
   }
   return result.join('\n');
 }

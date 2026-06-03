@@ -8,7 +8,11 @@ export class SimplifyHandler implements CommandHandler {
   async execute(orchestrator: Orchestrator) {
     await orchestrator.injectMessage({
       role: 'user',
-      parts: [{ text: "Analyze recently edited files. Identify high complexity or 'code smells'. Propose simplified refactor for one area. Verify with tests." }]
+      parts: [
+        {
+          text: "Analyze recently edited files. Identify high complexity or 'code smells'. Propose simplified refactor for one area. Verify with tests.",
+        },
+      ],
     });
     await orchestrator.processTurn(0);
   }

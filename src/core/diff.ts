@@ -7,26 +7,34 @@ function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function flexibleSearch(content: string, search: string): { start: number, end: number } | null {
+function flexibleSearch(content: string, search: string): { start: number; end: number } | null {
   const exactIndex = content.indexOf(search);
   if (exactIndex !== -1) {
     return { start: exactIndex, end: exactIndex + search.length };
   }
-  
+
   const tokens = search.trim().split(/\s+/);
   if (tokens.length === 0) return null;
-  
+
   const pattern = tokens.map(escapeRegExp).join('\\s+');
   const regex = new RegExp(pattern);
   const match = content.match(regex);
   if (match && match.index !== undefined) {
     return { start: match.index, end: match.index + match[0].length };
   }
-  
+
   return null;
 }
 
-export async function showDiff(orchestrator: Orchestrator, path: string, search: string, replace: string, action: string = 'Replace content', reason: string = 'Requested change', autoApply: boolean = false): Promise<{ success: boolean, originalContent?: string }> {
+export async function showDiff(
+  orchestrator: Orchestrator,
+  path: string,
+  search: string,
+  replace: string,
+  action: string = 'Replace content',
+  reason: string = 'Requested change',
+  autoApply: boolean = false
+): Promise<{ success: boolean; originalContent?: string }> {
   try {
     const content = await fs.readFile(path, 'utf8');
     const match = flexibleSearch(content, search);
@@ -64,12 +72,14 @@ export async function showDiff(orchestrator: Orchestrator, path: string, search:
       console.log(padLine('Action', action));
       console.log(padLine('Reason', reason));
       console.log(divider);
-      console.log(pipe + chalk.yellow('  [y] Apply   [n] Skip   [d] Diff'.padEnd(boxWidth - 3)) + pipe);
+      console.log(
+        pipe + chalk.yellow('  [y] Apply   [n] Skip   [d] Diff'.padEnd(boxWidth - 3)) + pipe
+      );
       console.log(bottom);
 
       const answer = await orchestrator.rl.question(chalk.yellow('Choice: '));
       const cmd = answer.toLowerCase().trim();
-      
+
       if (cmd === 'y') {
         await fs.writeFile(path, newContent, 'utf8');
         return { success: true, originalContent: content };
@@ -107,7 +117,12 @@ export async function showInteractiveDiff(gitDiffOutput: string): Promise<void> 
 
   const lines = gitDiffOutput.split('\n');
   for (const line of lines) {
-    if (line.startsWith('---') || line.startsWith('+++') || line.startsWith('Index:') || line.startsWith('diff --git')) {
+    if (
+      line.startsWith('---') ||
+      line.startsWith('+++') ||
+      line.startsWith('Index:') ||
+      line.startsWith('diff --git')
+    ) {
       process.stdout.write(chalk.bold(line + '\n'));
     } else if (line.startsWith('+')) {
       process.stdout.write(chalk.green(line + '\n'));

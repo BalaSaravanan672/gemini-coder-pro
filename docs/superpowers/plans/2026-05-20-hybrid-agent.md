@@ -13,12 +13,14 @@
 ### Task 1: Project Initialization & Environment
 
 **Files:**
+
 - Create: `package.json`
 - Create: `tsconfig.json`
 - Create: `.gitignore`
 - Create: `src/index.ts`
 
 - [ ] **Step 1: Create package.json with dependencies**
+
 ```json
 {
   "name": "gemini-coder",
@@ -40,6 +42,7 @@
 ```
 
 - [ ] **Step 2: Create tsconfig.json**
+
 ```json
 {
   "compilerOptions": {
@@ -56,6 +59,7 @@
 ```
 
 - [ ] **Step 3: Create .gitignore**
+
 ```text
 node_modules
 dist
@@ -64,21 +68,24 @@ gemini.json
 ```
 
 - [ ] **Step 4: Create a hello world src/index.ts**
+
 ```typescript
-console.log("Gemini Coder Initialized");
+console.log('Gemini Coder Initialized');
 ```
 
 - [ ] **Step 5: Run and verify**
-Run: `npm install && npx tsx src/index.ts`
-Expected: "Gemini Coder Initialized"
+      Run: `npm install && npx tsx src/index.ts`
+      Expected: "Gemini Coder Initialized"
 
 ### Task 2: Vertex AI Client & Authentication
 
 **Files:**
+
 - Create: `src/ai.ts`
 - Test: `tests/ai.test.ts` (using simple script for now)
 
 - [ ] **Step 1: Implement AI client initialization**
+
 ```typescript
 import { VertexAI } from '@google-cloud/vertexai';
 import fs from 'fs';
@@ -96,29 +103,33 @@ export const model = vertexAI.getGenerativeModel({
 ```
 
 - [ ] **Step 2: Verify connectivity**
-Create `verify-ai.ts`:
+      Create `verify-ai.ts`:
+
 ```typescript
 import { model } from './src/ai.js';
-const result = await model.generateContent("Hello, are you ready?");
+const result = await model.generateContent('Hello, are you ready?');
 console.log(result.response.candidates[0].content.parts[0].text);
 ```
+
 Run: `npx tsx verify-ai.ts`
 Expected: A greeting from Gemini.
 
 ### Task 3: Context Map Generator
 
 **Files:**
+
 - Create: `src/context.ts`
 
 - [ ] **Step 1: Implement file tree walker**
+
 ```typescript
 import { glob } from 'glob';
 import fs from 'fs';
 
 export async function getContextMap(): Promise<string> {
-  const files = await glob('**/*', { 
+  const files = await glob('**/*', {
     ignore: ['node_modules/**', 'dist/**', '.git/**', 'gemini.json'],
-    nodir: true 
+    nodir: true,
   });
   return files.join('\n');
 }
@@ -127,39 +138,45 @@ export async function getContextMap(): Promise<string> {
 ### Task 4: Tool Implementation
 
 **Files:**
+
 - Create: `src/tools.ts`
 
 - [ ] **Step 1: Define tool functions**
+
 ```typescript
 import fs from 'fs/promises';
 
 export const tools = {
   read_files: async ({ paths }: { paths: string[] }) => {
-    const contents = await Promise.all(paths.map(async p => ({
-      path: p,
-      content: await fs.readFile(p, 'utf8')
-    })));
+    const contents = await Promise.all(
+      paths.map(async (p) => ({
+        path: p,
+        content: await fs.readFile(p, 'utf8'),
+      }))
+    );
     return contents;
   },
   propose_edits: async ({ edits }: { edits: any[] }) => {
     // This will be handled by the orchestrator for the approval gate
-    return { status: "pending_approval", edits };
-  }
+    return { status: 'pending_approval', edits };
+  },
 };
 ```
 
 ### Task 5: The Chat Loop & Orchestrator
 
 **Files:**
+
 - Modify: `src/index.ts`
 
 - [ ] **Step 1: Implement the main REPL loop**
-Using `readline` to take user input and call the AI model in a loop, handling tool calls.
+      Using `readline` to take user input and call the AI model in a loop, handling tool calls.
 
 ### Task 6: Review Gate & Diffing
 
 **Files:**
+
 - Create: `src/diff.ts`
 
 - [ ] **Step 1: Implement diff display and confirmation**
-Use the `diff` library to show `search/replace` changes and `readline` to ask `(y/n)`.
+      Use the `diff` library to show `search/replace` changes and `readline` to ask `(y/n)`.

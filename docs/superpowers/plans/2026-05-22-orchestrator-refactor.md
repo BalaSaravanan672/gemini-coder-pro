@@ -13,6 +13,7 @@
 ### Task 1: Refactor Orchestrator for Dynamic Prompt Loading
 
 **Files:**
+
 - Modify: `src/core/orchestrator.ts`
 
 - [ ] **Step 1: Add fs import and loadSystemPrompt method**
@@ -38,7 +39,7 @@ import path from 'path';
   public async initialize() {
     // Register all slash commands
     registerAllCommands();
-    
+
     // Initialize system prompt if new session
     if (this.session.history.length === 0) {
       const systemPrompt = await this.loadSystemPrompt();
@@ -68,6 +69,7 @@ import path from 'path';
 ### Task 2: Update CLI to call initialize
 
 **Files:**
+
 - Modify: `src/cli.ts`
 
 - [ ] **Step 1: Update action to call orchestrator.initialize()**
@@ -75,7 +77,7 @@ import path from 'path';
 ```typescript
     const orchestrator = new Orchestrator(session, sessionManager);
     await orchestrator.initialize();
-    
+
     if (options.prompt) {
 ```
 

@@ -23,23 +23,29 @@ async function getPackageVersion(): Promise<string> {
 const packageVersion = await getPackageVersion();
 
 program
-  .name('gemini')
+  .name('gemini-coder')
   .description('Gemini Coder Pro CLI - Advanced AI Coding Agent')
   .version(packageVersion);
 
 program
   .command('chat', { isDefault: true })
   .description('Start an interactive chat session')
-  .option('-p, --prompt <query>', 'Start with an initial prompt')
-  .option('--autonomous', 'Run without interactive approval prompts')
+  .argument('[query]', 'Optional initial prompt to run')
+  .option('-p, --prompt <query>', 'One-off prompt to run and exit (alias for [query])')
+  .option('--yolo', 'Auto-approve mode: automatically execute all tool calls')
+  .option('--autonomous', 'Alias for --yolo')
   .option('-n, --new', 'Start a new session even if a recent one exists')
   .option('-c, --continue', 'Continue the most recent session')
   .option('--resume <id>', 'Resume a specific session by ID')
   .option('--session <id>', 'Alias for --resume')
   .option('-m, --model <name>', 'Specify the model to use', 'gemini-3.5-flash')
-  .action(async (options) => {
+  .action(async (queryArg, options) => {
     printBootScreen('Gemini Coder Pro', `v${packageVersion}`);
-    
+
+    const query = queryArg || options.prompt;
+    const isOneOff = !!options.prompt;
+    const isYolo = !!(options.yolo || options.autonomous);
+
     let session;
     const workspaceRoot = normalizeWorkspaceRoot(process.cwd());
     const resumeId = String(options.resume ?? options.session ?? '').trim();
@@ -61,7 +67,7 @@ program
         console.log(chalk.green(`✓ Resuming session: ${session.id}`));
       }
     }
-    
+
     if (!session) {
       session = await sessionManager.createSession('default', workspaceRoot);
     }
@@ -70,16 +76,27 @@ program
     session.workspaceRoot = sessionWorkspaceRoot;
     try {
       process.chdir(sessionWorkspaceRoot);
-    } catch (_) {
-      // Best effort: the orchestrator still resolves all workspace-relative paths explicitly.
+    } catch {
+      // Best effort
     }
 
-    const orchestrator = new Orchestrator(session, sessionManager, options.model, sessionWorkspaceRoot, Boolean(options.autonomous));
+    const orchestrator = new Orchestrator(
+      session,
+      sessionManager,
+      options.model,
+      sessionWorkspaceRoot,
+      isYolo
+    );
     await orchestrator.initialize();
-    
-    if (options.prompt) {
-      orchestrator['session'].history.push({ role: 'user', parts: [{ text: options.prompt }] });
+
+    if (query) {
+      orchestrator['session'].history.push({ role: 'user', parts: [{ text: query }] });
       await orchestrator['processTurn'](0);
+
+      if (isOneOff) {
+        // Exit for one-off prompts
+        process.exit(0);
+      }
     }
 
     await orchestrator.chat();
@@ -95,7 +112,7 @@ program
       console.log(chalk.yellow('No sessions found.'));
       return;
     }
-    
+
     console.log(chalk.bold.blue('\n📊 Recent Sessions:'));
     const table = new Table({
       head: [
@@ -104,18 +121,18 @@ program
         chalk.cyan('Last Updated'),
         chalk.cyan('Tokens (Total)'),
       ],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
-    
-    sessions.forEach(s => {
+
+    sessions.forEach((s) => {
       table.push([
         s.id,
         s.workspaceRoot ?? '(unknown)',
         new Date(s.updatedAt).toLocaleString(),
-        s.tokens?.total?.toLocaleString() || '0'
+        s.tokens?.total?.toLocaleString() || '0',
       ]);
     });
-    
+
     console.log(table.toString());
   });
 

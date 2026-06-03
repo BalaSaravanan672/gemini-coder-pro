@@ -2,3 +2,7 @@ node_modules
 dist
 gemini.json
 .env
+.gemini-coder/sessions/
+.superpowers/
+*.tgz
+.DS_Store

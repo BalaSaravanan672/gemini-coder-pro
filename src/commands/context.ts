@@ -8,13 +8,17 @@ export class ContextHandler implements CommandHandler {
 
   async execute(orchestrator: Orchestrator) {
     const readFiles = new Set<string>();
-    
+
     for (const message of orchestrator.session.history) {
       if (message.role === 'model' && message.parts) {
         for (const part of message.parts) {
-          if (part.functionCall && part.functionCall.name === 'read_files' && part.functionCall.args) {
+          if (
+            part.functionCall &&
+            part.functionCall.name === 'read_files' &&
+            part.functionCall.args
+          ) {
             const paths = part.functionCall.args.paths as string[];
-            paths.forEach(p => readFiles.add(p));
+            paths.forEach((p) => readFiles.add(p));
           }
         }
       }
@@ -26,8 +30,10 @@ export class ContextHandler implements CommandHandler {
     }
 
     console.log(chalk.bold('\nFiles read this session:'));
-    Array.from(readFiles).sort().forEach(f => {
-      console.log(chalk.cyan(`  • ${f}`));
-    });
+    Array.from(readFiles)
+      .sort()
+      .forEach((f) => {
+        console.log(chalk.cyan(`  • ${f}`));
+      });
   }
 }

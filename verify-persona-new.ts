@@ -6,12 +6,12 @@ async function test() {
   const session = await sm.createSession('persona-test');
   const orchestrator = new Orchestrator(session, sm);
   await orchestrator.initialize();
-  
+
   const prompt = session.history[0]?.parts[0]?.text;
   console.log('--- PROMPT START ---');
   console.log(prompt);
   console.log('--- PROMPT END ---');
-  
+
   if (prompt?.includes('precision coding agent')) {
     console.log('SUCCESS: New persona detected.');
   } else {
@@ -20,4 +20,7 @@ async function test() {
   }
 }
 
-test().catch(e => { console.error(e); process.exit(1); });
+test().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

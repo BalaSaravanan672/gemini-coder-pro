@@ -32,9 +32,10 @@ export class SessionManager {
   private async ensureDirectory() {
     try {
       await fs.mkdir(SESSIONS_DIR, { recursive: true });
-    } catch (_e: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       console.warn(
-        `\n[System Warning]: Failed to ensure sessions directory at ${SESSIONS_DIR}. Error: ${_e.message}`
+        `\n[System Warning]: Failed to ensure sessions directory at ${SESSIONS_DIR}. Error: ${message}`
       );
     }
   }

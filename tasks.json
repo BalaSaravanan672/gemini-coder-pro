@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "title": "Dependency Recruitment",
+    "status": "done",
+    "description": "Install devDependencies: vitest, eslint, prettier, etc."
+  },
+  {
+    "id": 2,
+    "title": "Setting up the Guard Posts (Configs)",
+    "status": "done",
+    "description": "Create eslint.config.js, .prettierrc, and vitest.config.ts."
+  },
+  {
+    "id": 3,
+    "title": "Training the Crew (Scripts)",
+    "status": "done",
+    "description": "Add lint, format, and test scripts to package.json."
+  },
+  {
+    "id": 4,
+    "title": "First Guard Duty (Initial Tests)",
+    "status": "done",
+    "description": "Create a sanity check test for Vitest."
+  }
+]

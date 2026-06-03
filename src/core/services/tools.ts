@@ -1,4 +1,4 @@
-import { FunctionDeclaration, Part } from '@google/genai';
+import { FunctionDeclaration, Part, FunctionCall } from '@google/genai';
 import { toolRegistry, registerTool } from '../../tools/index.js';
 import { ExtensionService } from './extensions.js';
 
@@ -7,7 +7,7 @@ export class ToolManager {
     return toolRegistry.map((t) => ({
       name: t.name,
       description: t.description,
-      parameters: t.parameters as any,
+      parameters: t.parameters as Record<string, unknown>,
     }));
   }
 
@@ -18,13 +18,14 @@ export class ToolManager {
     }
   }
 
-  static summarize(toolResponses: Part[], functionCalls: any[]): string {
+  static summarize(toolResponses: Part[], functionCalls: FunctionCall[]): string {
     const summaries: string[] = [];
 
     for (let i = 0; i < functionCalls.length; i++) {
       const call = functionCalls[i];
-      const response = toolResponses[i] as any;
-      const result = response?.functionResponse?.response?.result;
+      const response = toolResponses[i];
+      const result = (response?.functionResponse?.response as Record<string, unknown> | undefined)
+        ?.result as Record<string, unknown> | undefined;
 
       if (result?.error) {
         summaries.push(`${call?.name || 'tool'} failed.`);

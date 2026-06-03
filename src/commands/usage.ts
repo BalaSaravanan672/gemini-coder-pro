@@ -8,12 +8,12 @@ export class UsageHandler implements CommandHandler {
 
   async execute(orchestrator: Orchestrator) {
     const tokens = orchestrator.session.tokens || { prompt: 0, candidates: 0, total: 0 };
-    
+
     // Cost estimation based on standard Gemini 1.5 Pro/Flash pricing (rough estimate)
     // Adjust logic as needed. Assume $3.50 per 1M prompt, $10.50 per 1M candidates for Pro
-    const costPerMillionPrompt = 3.50;
-    const costPerMillionCandidates = 10.50;
-    
+    const costPerMillionPrompt = 3.5;
+    const costPerMillionCandidates = 10.5;
+
     const promptCost = (tokens.prompt / 1_000_000) * costPerMillionPrompt;
     const candidatesCost = (tokens.candidates / 1_000_000) * costPerMillionCandidates;
     const totalCost = promptCost + candidatesCost;

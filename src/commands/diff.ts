@@ -8,7 +8,7 @@ export class DiffHandler implements CommandHandler {
   name = 'diff';
   description = 'Show interactive diff of all uncommitted changes';
 
-  async execute(orchestrator: Orchestrator) {
+  async execute(_orchestrator: Orchestrator) {
     try {
       const cachedDiff = await tools.run_command({ command: 'git diff --cached' });
       const unstagedDiff = await tools.run_command({ command: 'git diff' });

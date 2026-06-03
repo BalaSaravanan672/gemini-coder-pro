@@ -20,7 +20,8 @@ export interface ProposeEditsResult {
 
 export class ProposeEditsTool extends BaseTool<ProposeEditsArgs, ProposeEditsResult> {
   readonly name = 'propose_edits';
-  readonly description = 'Propose surgical edits to one or more files using search and replace blocks.';
+  readonly description =
+    'Propose surgical edits to one or more files using search and replace blocks.';
   readonly parameters = {
     type: 'OBJECT',
     properties: {
@@ -32,7 +33,10 @@ export class ProposeEditsTool extends BaseTool<ProposeEditsArgs, ProposeEditsRes
             path: { type: 'STRING', description: 'The absolute path to the file.' },
             search: { type: 'STRING', description: 'The exact literal text to find.' },
             replace: { type: 'STRING', description: 'The text to replace it with.' },
-            action: { type: 'STRING', description: 'Brief description of the action (e.g. "Replace lines 10-15").' },
+            action: {
+              type: 'STRING',
+              description: 'Brief description of the action (e.g. "Replace lines 10-15").',
+            },
             reason: { type: 'STRING', description: 'Technical reason for this change.' },
           },
           required: ['path', 'search', 'replace', 'action', 'reason'],
@@ -43,8 +47,8 @@ export class ProposeEditsTool extends BaseTool<ProposeEditsArgs, ProposeEditsRes
   };
 
   protected async run(args: ProposeEditsArgs): Promise<ProposeEditsResult> {
-    // This tool's execution is unique because it's intercepted by the Orchestrator, 
+    // This tool's execution is unique because it's intercepted by the Orchestrator,
     // but we still need its definition for the registry.
-    return { status: "pending_approval", edits: args.edits };
+    return { status: 'pending_approval', edits: args.edits };
   }
 }

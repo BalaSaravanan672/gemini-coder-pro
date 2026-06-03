@@ -8,7 +8,11 @@ export class ReviewHandler implements CommandHandler {
   async execute(orchestrator: Orchestrator) {
     await orchestrator.injectMessage({
       role: 'user',
-      parts: [{ text: "Perform a deep read-only code review. Focus on maintainability, performance, and idiomatic TypeScript. Output an analytical report. Do not propose edits." }]
+      parts: [
+        {
+          text: 'Perform a deep read-only code review. Focus on maintainability, performance, and idiomatic TypeScript. Output an analytical report. Do not propose edits.',
+        },
+      ],
     });
     await orchestrator.processTurn(0);
   }
@@ -21,7 +25,11 @@ export class SecurityReviewHandler implements CommandHandler {
   async execute(orchestrator: Orchestrator) {
     await orchestrator.injectMessage({
       role: 'user',
-      parts: [{ text: "Perform a focused security review. Identify vulnerabilities (injection, secrets, insecure config). Output an analytical report. Do not propose edits." }]
+      parts: [
+        {
+          text: 'Perform a focused security review. Identify vulnerabilities (injection, secrets, insecure config). Output an analytical report. Do not propose edits.',
+        },
+      ],
     });
     await orchestrator.processTurn(0);
   }
