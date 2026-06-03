@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { render } from 'ink';
+import React from 'react';
+import { App } from '@gemini-coder/ui';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
@@ -82,26 +85,11 @@ program
       // Best effort
     }
 
-    const orchestrator = new Orchestrator(
-      session,
-      sessionManager,
-      options.model,
-      sessionWorkspaceRoot,
-      isYolo
-    );
+    const orchestrator = new Orchestrator(session, sessionManager, options.model, sessionWorkspaceRoot, isYolo);
     await orchestrator.initialize();
+    
+    render(<App orchestrator={orchestrator} />);
 
-    if (query) {
-      orchestrator['session'].history.push({ role: 'user', parts: [{ text: query }] });
-      await orchestrator['processTurn'](0);
-
-      if (isOneOff) {
-        // Exit for one-off prompts
-        process.exit(0);
-      }
-    }
-
-    await orchestrator.chat();
   });
 
 program

@@ -1,1 +1,1 @@
-export const mcpReady = true;
+export * from './client.js';

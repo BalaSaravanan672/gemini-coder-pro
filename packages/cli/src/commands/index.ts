@@ -10,6 +10,8 @@ import { UndoHandler } from './undo.js';
 import { ContextHandler } from './context.js';
 import { CdHandler } from './cd.js';
 import { ExtensionsHandler } from './extensions.js';
+import { CheckpointHandler } from './checkpoint.js';
+import { TokenUsageHandler } from './token-usage.js';
 
 export function registerAllCommands() {
   CommandRegistry.register(new PlanHandler());
@@ -24,4 +26,6 @@ export function registerAllCommands() {
   CommandRegistry.register(new ContextHandler());
   CommandRegistry.register(new CdHandler());
   CommandRegistry.register(new ExtensionsHandler());
+  CommandRegistry.register(new CheckpointHandler());
+  CommandRegistry.register(new TokenUsageHandler());
 }

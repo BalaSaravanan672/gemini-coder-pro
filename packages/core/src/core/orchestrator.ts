@@ -26,6 +26,8 @@ import { ToolManager } from './services/tools.js';
 import { ContextService } from './services/context.js';
 import { PromptService } from './services/prompt.js';
 
+import { EventEmitter } from 'node:events';
+
 // Configure marked to use terminal rendering
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 marked.use(markedTerminal() as any);
@@ -49,14 +51,13 @@ function isPersistablePart(part: Part): boolean {
   return typeof part.text === 'string' ? part.text.trim().length > 0 : false;
 }
 
-export class Orchestrator {
+export class Orchestrator extends EventEmitter {
   public session: Session;
   private sessionManager: SessionManager;
   private mode: OrchestratorMode = OrchestratorMode.NORMAL;
   private model: string;
   public workspaceRoot: string;
   public autonomous: boolean = false;
-  public rl: readline.Interface;
   private forceTextResponseMode: boolean = false;
   private consecutiveToolTurns: number = 0;
   private lastTurnExecutedTools: boolean = false;
@@ -68,15 +69,12 @@ export class Orchestrator {
     workspaceRoot: string = process.cwd(),
     autonomous: boolean = false
   ) {
+    super();
     this.session = session;
     this.sessionManager = sessionManager;
     this.model = model;
     this.workspaceRoot = normalizeWorkspaceRoot(workspaceRoot);
     this.autonomous = autonomous;
-    this.rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
   }
 
   private async syncSessionWorkspaceRoot(): Promise<void> {
@@ -163,136 +161,6 @@ export class Orchestrator {
     this.session.history.push(message);
   }
 
-  async chat() {
-    const isInteractive = process.stdout.isTTY;
-
-    while (true) {
-      let userInput = '';
-      try {
-        userInput = await this.rl.question(getPromptText(this.mode));
-      } catch (error: unknown) {
-        // Handle readline errors gracefully
-        const err = error as Record<string, unknown>;
-        if (
-          err?.code === 'ABORT_ERR' ||
-          err?.name === 'AbortError' ||
-          err?.code === 'ERR_USE_AFTER_CLOSE'
-        ) {
-          // In non-interactive mode (piped input), EOF is expected and should exit gracefully
-          if (!isInteractive) {
-            break;
-          }
-          console.log(chalk.yellow('\nSession interrupted. Exiting...'));
-          break;
-        }
-        throw error;
-      }
-
-      if (userInput.trim() === '') continue;
-      if (userInput.toLowerCase() === 'exit') break;
-
-      if (userInput.startsWith('/')) {
-        await this.handleSlashCommand(userInput);
-        continue;
-      }
-
-      // Quick local handlers for common project queries to avoid model round-trips
-      // Accept common misspellings: "expain", "explian"
-      const explainProjectMatch =
-        /^\s*(?:explain|expain|explian)(?:\s+(?:the|this))?\s+project\b|^\s*(?:list(?:\s+files|\s+project(?: files)?)?)\b/i;
-      if (explainProjectMatch.test(userInput)) {
-        try {
-          const entries = await fs.readdir(this.workspaceRoot, { withFileTypes: true });
-          const names = entries.map((e) => (e.isDirectory() ? `${e.name}/` : e.name)).slice(0, 200);
-          const readmePath = path.join(this.workspaceRoot, 'README.md');
-          let readme = '';
-          try {
-            readme = await fs.readFile(readmePath, 'utf8');
-          } catch {
-            // ignore missing README
-          }
-
-          const summaryLines: string[] = [];
-          summaryLines.push(`Files: ${names.length > 0 ? names.join(', ') : '(empty)'}.`);
-          if (readme.trim()) {
-            const max = 4000;
-            const excerpt = readme.length > max ? `${readme.slice(0, max)}...` : readme;
-            summaryLines.push(`README excerpt:\n${excerpt}`);
-            if (readme.length > max) {
-              summaryLines.push(
-                `(README truncated — ask "show README" or run the CLI from the project to view the full file.)`
-              );
-            }
-          }
-
-          printAssistantResponse(summaryLines.join('\n\n'));
-        } catch (error: unknown) {
-          const message = error instanceof Error ? error.message : String(error);
-          printAssistantResponse(`Unable to read project directory: ${message}`);
-        }
-        continue;
-      }
-
-      // Natural-language navigation: "navigate to X", "cd X", "chdir X"
-      const navMatch = userInput.match(/^\s*(?:navigate to|cd|chdir)\s+(.+)$/i);
-      if (navMatch) {
-        const target = navMatch[1].trim();
-        const resolved = path.isAbsolute(target)
-          ? target
-          : path.resolve(this.workspaceRoot, target);
-        try {
-          const stat = await fs.stat(resolved);
-          if (!stat.isDirectory()) {
-            printAssistantResponse(`Cannot navigate: ${target} is not a directory.`);
-          } else {
-            await this.setWorkspaceRoot(resolved);
-            printAssistantResponse(`Changed workspace to ${resolved}`);
-          }
-        } catch (error: unknown) {
-          const message = error instanceof Error ? error.message : String(error);
-          printAssistantResponse(`Cannot navigate to ${target}: ${message}`);
-        }
-        continue;
-      }
-
-      // Local project/directory queries handled locally to avoid model inconsistencies
-      const simpleQuery = userInput.match(
-        /^\s*(?:which project are you in\??|which directory are you in\??|where are you\??)\s*$/i
-      );
-      if (simpleQuery) {
-        printAssistantResponse(`I am in ${this.workspaceRoot}`);
-        continue;
-      }
-
-      // Direct boolean check: "are you in <path>?"
-      const areYouIn = userInput.match(/^\s*are you in\s+(.+?)\s*\??$/i);
-      if (areYouIn) {
-        const target = areYouIn[1].trim();
-        const resolved = path.isAbsolute(target)
-          ? target
-          : path.resolve(this.workspaceRoot, target);
-        const isSame = path.resolve(this.workspaceRoot) === path.resolve(resolved);
-        printAssistantResponse(
-          isSame ? `Yes — I am in ${this.workspaceRoot}` : `No — I am in ${this.workspaceRoot}`
-        );
-        continue;
-      }
-
-      this.session.history.push({ role: 'user', parts: [{ text: userInput }] });
-      await this.processTurn(0);
-
-      // Save session after every exchange
-      this.session.updatedAt = new Date().toISOString();
-      try {
-        await this.sessionManager.saveSession(this.session);
-      } catch {
-        // ignore
-      }
-    }
-
-    this.rl.close();
-  }
-
   public async handleSlashCommand(command: string) {
     const [cmd, ...args] = command.slice(1).split(' ');
 
@@ -338,6 +206,12 @@ export class Orchestrator {
       default:
         console.log(chalk.red(`Unknown command: /${cmd}`));
     }
+  }
+
+  public async askQuestion(query: string): Promise<string> {
+    return new Promise((resolve) => {
+      this.emit('question', query, resolve);
+    });
   }
 
   public async processTurn(turnCount: number, maxOutputTokensOverride?: number) {
@@ -509,7 +383,8 @@ export class Orchestrator {
 
       if (!isFirstChunk && assistantText.trim()) {
         const formattedText = marked.parse(assistantText) as string;
-        printAssistantResponse(formattedText.trim());
+        this.emit('message', 
+formattedText.trim());
       } else {
         spinner.stop();
       }
@@ -531,7 +406,7 @@ export class Orchestrator {
           return;
         }
 
-        printAssistantResponse(
+        this.emit('message', 
           'I did not receive a complete response from the model. Please try again.'
         );
         return;
@@ -591,7 +466,8 @@ export class Orchestrator {
           return;
         }
 
-        printAssistantResponse('Model exhausted the output budget before finishing the response.');
+        this.emit('message', 
+'Model exhausted the output budget before finishing the response.');
         return;
       }
 
@@ -605,7 +481,7 @@ export class Orchestrator {
             await this.processTurn(turnCount + 1, retryTokens);
             return;
           }
-          printAssistantResponse(
+          this.emit('message', 
             'Model exhausted the output budget before producing visible text.'
           );
         } else if (responseParts.length > 0 && turnCount + 1 < MAX_TURNS) {
@@ -633,7 +509,8 @@ export class Orchestrator {
               responseParts.length > 0
                 ? 'The model returned tool activity but no visible answer. I can retry once or summarize the retrieved context.'
                 : 'I completed the turn but no visible response was returned. Please retry your request.';
-            printAssistantResponse(retryHint);
+            this.emit('message', 
+retryHint);
           }
         }
       }
@@ -782,7 +659,8 @@ export class Orchestrator {
         });
 
         if (!assistantText.trim()) {
-          printAssistantResponse(ToolManager.summarize(toolResponses, functionCalls));
+          this.emit('message', 
+ToolManager.summarize(toolResponses, functionCalls));
         }
 
         // Refined Tool Chaining Logic:

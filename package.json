@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "tsc -b",
     "dev": "npm run dev --workspace=@gemini-coder/cli",
     "dev:server": "npm run dev:server --workspace=@gemini-coder/cli",
     "start": "npm run start --workspace=@gemini-coder/cli",

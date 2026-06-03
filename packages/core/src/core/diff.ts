@@ -145,7 +145,7 @@ export async function showDiff(
       );
       console.log(bottom);
 
-      const answer = await orchestrator.rl.question(chalk.yellow('Choice: '));
+      const answer = await orchestrator.askQuestion(chalk.yellow('Choice: '));
       const cmd = answer.toLowerCase().trim();
 
       if (cmd === 'y') {

@@ -18,7 +18,7 @@ export class CommitHandler implements CommandHandler {
           return;
         }
 
-        const answer = await orchestrator.rl.question(
+        const answer = await orchestrator.askQuestion(
           chalk.yellow('No staged changes. Stage all tracked changes (git add -u)? (y/n) ')
         );
         if (answer.toLowerCase() === 'y') {
@@ -61,7 +61,7 @@ export class CommitHandler implements CommandHandler {
       console.log(chalk.bold('\nProposed Message:'));
       console.log(chalk.green(proposedMessage));
 
-      const answer = await orchestrator.rl.question(
+      const answer = await orchestrator.askQuestion(
         chalk.yellow('\n[y] Commit   [e] Edit   [n] Abort: ')
       );
       const cmd = answer.toLowerCase().trim();

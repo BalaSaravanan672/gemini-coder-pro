@@ -4,8 +4,9 @@ import prettierConfig from 'eslint-config-prettier';
 
 export default [
   {
-    files: ['src/**/*.{ts,js,mjs}', '*.{ts,js,mjs}'],
+    files: ["packages/**/*.{ts,js,mjs}", "*.{ts,js,mjs}"],
     languageOptions: {
+
       parser: tsParser,
       parserOptions: {
         ecmaVersion: 'latest',

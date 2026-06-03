@@ -8,8 +8,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "tsx src/cli.ts chat",
-    "start": "node dist/cli.js chat"
+    "dev": "tsx src/cli.tsx chat",
+    "dev:server": "tsx src/server.ts",
+    "start": "node dist/cli.js chat",
+    "serve": "node dist/server.js"
   },
   "dependencies": {
     "@gemini-coder/core": "*",
