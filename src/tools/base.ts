@@ -1,16 +1,17 @@
 import { ToolResult } from './types.js';
 
-export abstract class BaseTool<TArgs = any, TResult extends ToolResult = ToolResult> {
+export abstract class BaseTool<TArgs = Record<string, unknown>, TResult extends ToolResult = ToolResult> {
   abstract readonly name: string;
   abstract readonly description: string;
-  abstract readonly parameters: Record<string, any>;
+  abstract readonly parameters: Record<string, unknown>;
 
   async execute(args: TArgs): Promise<TResult> {
     try {
       return await this.run(args);
-    } catch (err: any) {
+    } catch (error: unknown) {
       // Standardized error formatting across all tools
-      return { error: `[Tool Error: ${this.name}]: ${err.message || String(err)}` } as TResult;
+      const message = error instanceof Error ? error.message : String(error);
+      return { error: `[Tool Error: ${this.name}]: ${message}` } as TResult;
     }
   }
 
@@ -22,6 +23,6 @@ export abstract class BaseTool<TArgs = any, TResult extends ToolResult = ToolRes
    */
   protected truncate(text: string, limit = 50000): string {
     if (!text) return '';
-    return text.length > limit ? text.slice(0, limit) + "... [truncated]" : text;
+    return text.length > limit ? text.slice(0, limit) + '... [truncated]' : text;
   }
 }
