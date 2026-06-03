@@ -47,6 +47,8 @@ export class ToolManager {
         } else {
           summaries.push('Command executed successfully.');
         }
+      } else if (call?.name === 'propose_edits' && Array.isArray(result?.edits)) {
+        summaries.push(`Proposed ${result.edits.length} edit${result.edits.length === 1 ? '' : 's'}.`);
       } else if (call?.name) {
         summaries.push(`${call.name} completed.`);
       }

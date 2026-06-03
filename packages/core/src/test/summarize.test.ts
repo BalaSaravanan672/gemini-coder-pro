@@ -73,4 +73,36 @@ describe('ToolManager.summarize', () => {
     const summary = ToolManager.summarize(toolResponses, functionCalls);
     expect(summary).toBe('Command failed with exit code 1.');
   });
+
+  it('summarizes propose_edits', () => {
+    const functionCalls: FunctionCall[] = [
+      {
+        name: 'propose_edits',
+        args: {
+          edits: [
+            { path: 'a.ts', search: 'x', replace: 'y', action: 'z', reason: 'r' },
+            { path: 'b.ts', search: '1', replace: '2', action: '3', reason: '4' },
+          ],
+        },
+      },
+    ];
+    const toolResponses: Part[] = [
+      {
+        functionResponse: {
+          name: 'propose_edits',
+          response: {
+            result: {
+              status: 'pending_approval',
+              edits: [
+                { path: 'a.ts', search: 'x', replace: 'y', action: 'z', reason: 'r' },
+                { path: 'b.ts', search: '1', replace: '2', action: '3', reason: '4' },
+              ],
+            },
+          },
+        },
+      },
+    ];
+    const summary = ToolManager.summarize(toolResponses, functionCalls);
+    expect(summary).toBe('Proposed 2 edits.');
+  });
 });
