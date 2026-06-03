@@ -4,7 +4,7 @@ import { tools } from '../tools/index.js';
 import { showDiff } from './diff.js';
 import chalk from 'chalk';
 import ora from 'ora';
-import { Content, Part } from '@google/genai';
+import { Content, Part, FunctionCall, UsageMetadata } from '@google/genai';
 import { Session, SessionManager } from './session.js';
 import { normalizeWorkspaceRoot } from './session.js';
 import * as readline from 'readline/promises';
@@ -28,6 +28,7 @@ import { ContextService } from './services/context.js';
 import { PromptService } from './services/prompt.js';
 
 // Configure marked to use terminal rendering
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 marked.use(markedTerminal() as any);
 
 export enum OrchestratorMode {
@@ -54,7 +55,7 @@ export class Orchestrator {
   private sessionManager: SessionManager;
   private mode: OrchestratorMode = OrchestratorMode.NORMAL;
   private model: string;
-  private workspaceRoot: string;
+  public workspaceRoot: string;
   public autonomous: boolean = false;
   public rl: readline.Interface;
   private forceTextResponseMode: boolean = false;
@@ -173,12 +174,13 @@ export class Orchestrator {
       let userInput = '';
       try {
         userInput = await this.rl.question(getPromptText(this.mode));
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Handle readline errors gracefully
+        const err = error as Record<string, unknown>;
         if (
-          error?.code === 'ABORT_ERR' ||
-          error?.name === 'AbortError' ||
-          error?.code === 'ERR_USE_AFTER_CLOSE'
+          err?.code === 'ABORT_ERR' ||
+          err?.name === 'AbortError' ||
+          err?.code === 'ERR_USE_AFTER_CLOSE'
         ) {
           // In non-interactive mode (piped input), EOF is expected and should exit gracefully
           if (!isInteractive) {
@@ -228,10 +230,9 @@ export class Orchestrator {
           }
 
           printAssistantResponse(summaryLines.join('\n\n'));
-        } catch (_err: any) {
-          printAssistantResponse(
-            `Unable to read project directory: ${_err?.message ?? String(_err)}`
-          );
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          printAssistantResponse(`Unable to read project directory: ${message}`);
         }
         continue;
       }
@@ -251,8 +252,9 @@ export class Orchestrator {
             await this.setWorkspaceRoot(resolved);
             printAssistantResponse(`Changed workspace to ${resolved}`);
           }
-        } catch (_err: any) {
-          printAssistantResponse(`Cannot navigate to ${target}: ${_err?.message ?? String(_err)}`);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          printAssistantResponse(`Cannot navigate to ${target}: ${message}`);
         }
         continue;
       }
@@ -425,20 +427,24 @@ export class Orchestrator {
             temperature,
           },
         });
-      } catch (err: any) {
+      } catch (error: unknown) {
         spinner.fail(chalk.red('API Error'));
-        const message = isTransportError(err)
-          ? formatTransportError(err)
-          : String(err?.message || err);
+        const message = isTransportError(error)
+          ? formatTransportError(error)
+          : error instanceof Error
+            ? error.message
+            : String(error);
+
+        const errorString = error instanceof Error ? error.message : String(error);
         const isOauthDnsIssue =
-          String(err?.message || err).includes('oauth2.googleapis.com') ||
-          String(err?.message || err).includes('ENOTFOUND') ||
-          String(err?.message || err).includes('EAI_AGAIN') ||
-          String(err?.message || err).includes('ECONNRESET');
+          errorString.includes('oauth2.googleapis.com') ||
+          errorString.includes('ENOTFOUND') ||
+          errorString.includes('EAI_AGAIN') ||
+          errorString.includes('ECONNRESET');
 
         console.error(chalk.red(`\n[API Error]: ${message}`));
 
-        if (!isTransportError(err) && isOauthDnsIssue) {
+        if (!isTransportError(error) && isOauthDnsIssue) {
           console.error(
             chalk.yellow(
               '\n[Hint]: The CLI could not reach oauth2.googleapis.com to exchange the service-account token. Check network access, DNS, firewall, or proxy settings on this machine, then retry.'
@@ -449,10 +455,10 @@ export class Orchestrator {
       }
 
       let responseParts: Part[] = [];
-      let finalUsageMetadata: any = null;
+      let finalUsageMetadata: UsageMetadata | null = null;
       let finalFinishReason: string | undefined;
       let isFirstChunk = true;
-      const functionCallsByKey = new Map<string, any>();
+      const functionCallsByKey = new Map<string, FunctionCall>();
       let assistantText = '';
 
       for await (const chunk of responseStream) {
@@ -480,7 +486,8 @@ export class Orchestrator {
             if ('functionCall' in part && part.functionCall) {
               const call = part.functionCall;
               const key =
-                (call as any).id ?? `${call.name ?? 'unknown'}:${JSON.stringify(call.args ?? {})}`;
+                (call as { id?: string }).id ??
+                `${call.name ?? 'unknown'}:${JSON.stringify(call.args ?? {})}`;
               functionCallsByKey.set(key, call);
             }
           }
@@ -493,8 +500,8 @@ export class Orchestrator {
         if (chunk.functionCalls) {
           for (const call of chunk.functionCalls) {
             const key =
-              (call as any).id ??
-              `${call.name ?? 'unknown'}:${JSON.stringify(call.args ?? (call as any).partialArgs ?? {})}`;
+              (call as { id?: string }).id ??
+              `${call.name ?? 'unknown'}:${JSON.stringify(call.args ?? (call as { partialArgs?: unknown }).partialArgs ?? {})}`;
             functionCallsByKey.set(key, call);
           }
         }
@@ -515,12 +522,12 @@ export class Orchestrator {
         // If tools were just executed in the previous turn (or the session history
         // contains a recent tool-response entry), suppress this generic message
         // because a forced continuation or tool-summary flow may be in progress.
-        const lastHist = (this.session.history as any[]).slice(-1)[0];
+        const lastHist = this.session.history[this.session.history.length - 1];
         const recentToolHistory = !!(
           lastHist &&
           lastHist.role === 'user' &&
           Array.isArray(lastHist.parts) &&
-          lastHist.parts.some((p: any) => p && typeof p === 'object' && 'functionResponse' in p)
+          lastHist.parts.some((p: Part) => p && typeof p === 'object' && 'functionResponse' in p)
         );
 
         if (this.lastTurnExecutedTools || recentToolHistory) {
@@ -540,7 +547,7 @@ export class Orchestrator {
           this.session.tokens = { prompt: 0, candidates: 0, total: 0 };
         }
         this.session.tokens.prompt += finalUsageMetadata.promptTokenCount || 0;
-        this.session.tokens.candidates += finalUsageMetadata.candidatesTokenCount || 0;
+        this.session.tokens.candidates += finalUsageMetadata.responseTokenCount || 0;
         this.session.tokens.total += finalUsageMetadata.totalTokenCount || 0;
       }
 
@@ -617,12 +624,12 @@ export class Orchestrator {
         } else {
           // Only print error if we haven't just executed tools (which will trigger forced continuation)
           // Also inspect the recent session history for tool-response entries as a secondary signal.
-          const lastHist = (this.session.history as any[]).slice(-1)[0];
+          const lastHist = this.session.history[this.session.history.length - 1];
           const recentToolHistory = !!(
             lastHist &&
             lastHist.role === 'user' &&
             Array.isArray(lastHist.parts) &&
-            lastHist.parts.some((p: any) => p && typeof p === 'object' && 'functionResponse' in p)
+            lastHist.parts.some((p: Part) => p && typeof p === 'object' && 'functionResponse' in p)
           );
 
           if (!(this.lastTurnExecutedTools || recentToolHistory)) {
@@ -641,30 +648,42 @@ export class Orchestrator {
         const toolResponses: Part[] = new Array(functionCalls.length);
         this.consecutiveToolTurns++;
 
-        const executeCall = async (call: any, index: number) => {
+        const executeCall = async (call: FunctionCall, index: number) => {
           const { name, args } = call;
 
+          if (!name) {
+            toolResponses[index] = {
+              functionResponse: {
+                name: 'unknown',
+                response: { result: { error: 'Function call missing name.' } },
+              },
+            };
+            return;
+          }
+
+          const typedArgs = (args || {}) as Record<string, unknown>;
           let displayArgs = '';
-          if (name === 'read_files' && args?.paths) {
-            displayArgs = Array.isArray(args.paths) ? args.paths.join(', ') : args.paths;
+          if (name === 'read_files' && typedArgs.paths) {
+            const paths = typedArgs.paths;
+            displayArgs = Array.isArray(paths) ? paths.join(', ') : String(paths);
           } else if (name === 'list_directory') {
-            displayArgs = args?.path || '.';
-          } else if (name === 'grep_search' && args?.pattern) {
-            displayArgs = `"${args.pattern}"`;
-          } else if (name === 'run_command' && args?.command) {
-            displayArgs = args.command;
-          } else if (name === 'propose_edits' && args?.edits) {
-            displayArgs = `${args.edits.length} edit(s)`;
+            displayArgs = String(typedArgs.path || '.');
+          } else if (name === 'grep_search' && typedArgs.pattern) {
+            displayArgs = `"${typedArgs.pattern}"`;
+          } else if (name === 'run_command' && typedArgs.command) {
+            displayArgs = String(typedArgs.command);
+          } else if (name === 'propose_edits' && typedArgs.edits) {
+            displayArgs = `${(typedArgs.edits as unknown[]).length} edit(s)`;
           }
 
           const progressLabel = chalk.blue(`● ${name} ${displayArgs}...`);
           process.stdout.write(progressLabel);
 
-          let functionResponse;
+          let functionResult: unknown;
           try {
             // SKIP all tools if we're in forced-text mode (model must generate text, not more tools)
             if (this.forceTextResponseMode) {
-              functionResponse = {
+              functionResult = {
                 error: `Tools are disabled in text-generation mode. Provide text response instead.`,
               };
             }
@@ -673,34 +692,36 @@ export class Orchestrator {
               this.mode === OrchestratorMode.PLAN &&
               ['run_command', 'propose_edits'].includes(name)
             ) {
-              functionResponse = { error: `Plan Mode: ${name} is intercepted and not applied.` };
+              functionResult = { error: `Plan Mode: ${name} is intercepted and not applied.` };
             }
             // Specialized interactive tool
             else if (name === 'propose_edits') {
-              const { edits } = args as { edits: any[] };
+              const { edits } = typedArgs as { edits: Record<string, unknown>[] };
               const results = [];
               for (const edit of edits || []) {
                 const { success, originalContent } = await showDiff(
                   this,
-                  edit.path,
-                  edit.search,
-                  edit.replace,
-                  edit.action,
-                  edit.reason,
+                  edit.path as string,
+                  edit.search as string,
+                  edit.replace as string,
+                  edit.action as string,
+                  edit.reason as string,
                   this.autonomous
                 );
                 if (success && originalContent) {
-                  this.appliedEdits.push({ path: edit.path, originalContent });
+                  this.appliedEdits.push({ path: edit.path as string, originalContent });
                 }
                 results.push({ path: edit.path, applied: success });
               }
-              functionResponse = { results };
+              functionResult = { results };
             }
             // Dynamic routing for all other registered tools
             else if (name in tools) {
-              functionResponse = await (tools as any)[name](args || {});
+              functionResult = await (tools as Record<string, (args: any) => Promise<any>>)[name](
+                args || {}
+              );
             } else {
-              functionResponse = {
+              functionResult = {
                 error: `Unknown tool: ${name}. Available tools are: ${Object.keys(tools).join(', ')}`,
               };
             }
@@ -708,30 +729,34 @@ export class Orchestrator {
             // Clear progress line and show status (suppress message if tool was skipped due to text-mode)
             process.stdout.clearLine(0);
             process.stdout.cursorTo(0);
+            const resObj = functionResult as Record<string, unknown> | null;
             if (
               !this.forceTextResponseMode ||
-              functionResponse?.error?.includes?.('Tools are disabled')
+              (resObj &&
+                typeof resObj.error === 'string' &&
+                resObj.error.includes('Tools are disabled'))
             ) {
               // Tool was executed normally or explicitly skipped; no status needed
               if (this.forceTextResponseMode) {
                 console.log(chalk.gray(`⊘ ${name} ${displayArgs} (skipped)`));
-              } else if (functionResponse?.error) {
+              } else if (resObj && resObj.error) {
                 console.log(chalk.red(`✗ ${name} ${displayArgs} (failed)`));
               } else {
                 console.log(chalk.green(`✓ ${name} ${displayArgs}`));
               }
             }
-          } catch (error: any) {
+          } catch (error: unknown) {
             process.stdout.clearLine(0);
             process.stdout.cursorTo(0);
             console.log(chalk.red(`✗ ${name} ${displayArgs} (failed)`));
-            functionResponse = { error: error.message || String(error) };
+            const message = error instanceof Error ? error.message : String(error);
+            functionResult = { error: message };
           }
 
           toolResponses[index] = {
             functionResponse: {
               name: name,
-              response: { result: functionResponse },
+              response: { result: functionResult as Record<string, unknown> },
             },
           };
         };
@@ -797,8 +822,9 @@ export class Orchestrator {
 
       // Reset tool execution flag at end of turn for next top-level call
       this.lastTurnExecutedTools = false;
-    } catch (error: any) {
-      console.error(chalk.red(`\n[Error]: ${error.message || error}`));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(`\n[Error]: ${message}`));
     }
   }
 }
