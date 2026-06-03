@@ -45,4 +45,32 @@ describe('ToolManager.summarize', () => {
     // This will fail initially as it currently returns "Search completed."
     expect(summary).toBe('Found 3 matches.');
   });
+
+  it('summarizes run_command success', () => {
+    const functionCalls: FunctionCall[] = [{ name: 'run_command', args: { command: 'ls' } }];
+    const toolResponses: Part[] = [
+      {
+        functionResponse: {
+          name: 'run_command',
+          response: { result: { exitCode: 0, stdout: 'file.ts' } },
+        },
+      },
+    ];
+    const summary = ToolManager.summarize(toolResponses, functionCalls);
+    expect(summary).toBe('Command executed successfully.');
+  });
+
+  it('summarizes run_command failure', () => {
+    const functionCalls: FunctionCall[] = [{ name: 'run_command', args: { command: 'false' } }];
+    const toolResponses: Part[] = [
+      {
+        functionResponse: {
+          name: 'run_command',
+          response: { result: { exitCode: 1, stderr: 'error' } },
+        },
+      },
+    ];
+    const summary = ToolManager.summarize(toolResponses, functionCalls);
+    expect(summary).toBe('Command failed with exit code 1.');
+  });
 });

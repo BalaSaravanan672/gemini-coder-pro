@@ -41,7 +41,12 @@ export class ToolManager {
           : 0;
         summaries.push(`Found ${matches} match${matches === 1 ? '' : 'es'}.`);
       } else if (call?.name === 'run_command') {
-        summaries.push('Command executed.');
+        const exitCode = result?.exitCode;
+        if (exitCode !== undefined && exitCode !== 0) {
+          summaries.push(`Command failed with exit code ${exitCode}.`);
+        } else {
+          summaries.push('Command executed successfully.');
+        }
       } else if (call?.name) {
         summaries.push(`${call.name} completed.`);
       }
