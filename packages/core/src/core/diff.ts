@@ -128,23 +128,29 @@ export async function showDiff(
       const bottom = chalk.cyan('└' + '─'.repeat(boxWidth - 2) + '┘');
       const pipe = chalk.cyan('│');
 
+      const getLength = (str: string) => str.replace(/\u001b\[.*?m/g, '').length;
+
       const padLine = (label: string, value: string) => {
-        const line = `  ${label}: ${value}`;
-        const remaining = boxWidth - 3 - line.length;
-        return pipe + line + (remaining > 0 ? ' '.repeat(remaining) : '') + pipe;
+        const text = `  ${label}: ${value}`;
+        const len = getLength(text);
+        const remaining = boxWidth - 3 - len;
+        return pipe + text + (remaining > 0 ? ' '.repeat(remaining) : '') + pipe;
       };
 
-      console.log('\n' + border);
-      console.log(pipe + chalk.bold(`  PROPOSED EDIT ${fallbackUsed ? '(Regex)' : '(AST)'}`.padEnd(boxWidth - 3)) + pipe);
-      console.log(padLine('File', path));
-      console.log(padLine('Action', action));
-      console.log(padLine('Reason', reason));
-      console.log(divider);
-      console.log(
-        pipe + chalk.yellow('  [y] Apply   [n] Skip   [d] Diff'.padEnd(boxWidth - 3)) + pipe
-      );
-      console.log(bottom);
+      let box = border + '\n';
+      const title = chalk.bold(`  PROPOSED EDIT ${fallbackUsed ? '(Regex)' : '(AST)'}`);
+      const titleLen = getLength(title);
+      box += pipe + title + ' '.repeat(Math.max(0, boxWidth - 3 - titleLen)) + pipe + '\n';
+      box += padLine('File', path) + '\n';
+      box += padLine('Action', action) + '\n';
+      box += padLine('Reason', reason) + '\n';
+      box += divider + '\n';
+      const options = chalk.yellow('  [y] Apply   [n] Skip   [d] Diff');
+      const optionsLen = getLength(options);
+      box += pipe + options + ' '.repeat(Math.max(0, boxWidth - 3 - optionsLen)) + pipe + '\n';
+      box += bottom;
 
+      orchestrator.emit('message', box);
       const answer = await orchestrator.askQuestion(chalk.yellow('Choice: '));
       const cmd = answer.toLowerCase().trim();
 

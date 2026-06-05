@@ -588,6 +588,45 @@ retryHint);
               }
               functionResult = { results };
             }
+            else if (name === 'run_command') {
+              const { command } = typedArgs as { command: string };
+              let approved = this.autonomous;
+              
+              if (!approved) {
+                const boxWidth = 50;
+                const border = chalk.red('┌' + '─'.repeat(boxWidth - 2) + '┐');
+                const bottom = chalk.red('└' + '─'.repeat(boxWidth - 2) + '┘');
+                const pipe = chalk.red('│');
+                
+                const getLength = (str: string) => str.replace(/\u001b\[.*?m/g, '').length;
+                
+                const lines = [
+                  chalk.bold('  COMMAND EXECUTION REQUEST'),
+                  `  Command: ${command}`,
+                  '',
+                  chalk.yellow('  [y] Execute   [n] Skip')
+                ];
+                
+                let box = border + '\n';
+                for (const line of lines) {
+                  const len = getLength(line);
+                  box += pipe + line + ' '.repeat(Math.max(0, boxWidth - 3 - len)) + pipe + '\n';
+                }
+                box += bottom;
+                
+                this.emit('message', box);
+                const answer = await this.askQuestion(chalk.yellow('Allow command execution? (y/n): '));
+                approved = answer.toLowerCase().trim() === 'y';
+              } else {
+                console.log(chalk.yellow(`\n[Auto]: Executing command: ${command}`));
+              }
+              
+              if (approved) {
+                functionResult = await tools['run_command'](args || {});
+              } else {
+                functionResult = { error: 'Command execution cancelled by user.' };
+              }
+            }
             // Dynamic routing for all other registered tools
             else if (name in tools) {
               functionResult = await (tools as Record<string, (args: any) => Promise<any>>)[name](
